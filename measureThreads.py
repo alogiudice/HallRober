@@ -20,10 +20,10 @@ class AngleThread(QRunnable):
         self.angle = var1
         self.field = var2
         self.current = var3
-        print("Angle values to be swept: {}".format(self.angle))
-        print("Applied field: {}".format(self.field))
-        print("Applied current: {}".format(self.current))
-        print("MEASUREMENT START")
+        print("From Worker: Angle values to be swept: {}".format(self.angle))
+        print("From Worker: Applied field: {} G".format(self.field))
+        print("From Worker: Applied current: {} um".format(self.current))
+        print("From Worker: MEASUREMENT START (Angle sweep)")
 
     @pyqtSlot()
     def run(self):
@@ -48,13 +48,13 @@ class FieldThread(QRunnable):
         super(FieldThread, self).__init__()
         self.signals = WorkerSignals()
         print("Worker thread started (Field measurement)")
-        self.angle = var1
-        self.field = var2
+        self.field = var1
+        self.angle = var2
         self.current = var3
-        print("Field values to be swept: {}".format(self.angle))
-        print("Sample Angle: {}".format(self.field))
-        print("Applied current: {}".format(self.current))
-        print("MEASUREMENT START")
+        print("From Worker: Field values to be swept: {}".format(self.angle))
+        print("From Worker: Sample Angle: {}".format(self.field))
+        print("From Worker: Applied current: {}".format(self.current))
+        print("From Worker: MEASUREMENT START (Field sweep)")
 
     @pyqtSlot()
     def run(self):
