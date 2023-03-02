@@ -15,7 +15,6 @@ import equipos as inst
 from time import sleep
 from measureThreads import AngleThread
 #import arMotor as ard
-agostina.logiudice@gmail.com
 __version__ = "1.0"
 
 class Ui_MainWindow(QMainWindow):
