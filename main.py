@@ -10,6 +10,7 @@ import numpy as np
 from pathlib import Path
 from random import randint
 from datetime import date
+from csv import writer, QUOTE_NONE
 import pyvisa
 import equipos as inst
 from time import sleep
@@ -242,12 +243,17 @@ class Ui_MainWindow(QMainWindow):
         menubar.addMenu(helpMenu)
         selectFile_menu = QAction("Select Filename", fileMenu)
         instrument_menu = QAction("Initialize instruments", fileMenu)
+        saveang_menu = QAction("Save V vs angle measurements", fileMenu)
+        savefield_menu = QAction("Save V vs Field measurments", fileMenu)
         about_menu = QAction("About HallRober", helpMenu)
         fileMenu.addAction(selectFile_menu)
         fileMenu.addAction(instrument_menu)
+        fileMenu.addAction(saveang_menu)
+        fileMenu.addAction(savefield_menu)
         helpMenu.addAction(about_menu)
         selectFile_menu.triggered.connect(self.save_Filename)
         #instrument_menu.triggered.connect(self.initialize_instruments)
+        saveang_menu.triggered.connect(self.write_file)
         about_menu.triggered.connect(self.helpAbout)
     # ENDsetupUi
 
@@ -275,12 +281,12 @@ class Ui_MainWindow(QMainWindow):
         if filename:
             path = Path(filename)
             self.lineEdit_fname.setText(str(path))
-            print(path)
+            print('File path: {}'.format(path))
 
-    def write_file(self, sample_name, meas_type):
+    def write_file(self):
         # Writing the obtained results to a file.
         try:
-            file = open(self.filename[0], 'w')
+            file = open(self.lineEdit_fname.text(), 'w')
         except:
             warn = QMessageBox()
             warn.setWindowTitle('Error: Invalid or missing filename')
@@ -294,11 +300,24 @@ class Ui_MainWindow(QMainWindow):
             warn.buttonClicked.connect(warn.close)
             warn.exec_()
         else:
-            contents = ['Date: {}\n'.format(date.today()),
-                        'Sample name: {}\n'.format(self.lineEdit_2.text()),
-                        'Type of Measurement: {}\n'.format(self.comboBox_measure.currentText()),
-                        'DATA START\n']
-            file.writelines(contents)
+            contents = [['Date: {}'.format(date.today())],
+                        ['Sample name: {}'.format(self.lineEdit_2.text())],
+                        ['Type of Measurement: {}'.format(self.comboBox_measure.currentText())],
+                        ['-DATA START-'],
+                        ['Applied Current: {} uA'.format(self.spinBox_4.value())],
+                        ['Applied Field: {} G'.format(self.spinBox_5.value())],
+                        ['Number of Measurements per angle: {}'.format(self.spinBox_6.value())],
+                        ['Start Angle: {} deg'.format(self.spinBox.value())],
+                        ['End Angle: {} deg'.format(self.spinBox_2.value())],
+                        ['Angle Step: {} deg'.format(self.spinBox_3.value())]
+                        ]
+            wr = writer(file, delimiter=',', quoting=QUOTE_NONE, escapechar='\\')
+            for row in contents:
+                wr.writerow(row)
+            wr.writerow(['Angle (deg),Hall Voltage (V)'])
+            data = zip(self.x, self.y)
+            wr.writerows(data)
+            print('Data written to {}'.format(self.lineEdit_fname.text()))
             file.close()
 
     def change_layout(self):
@@ -308,7 +327,7 @@ class Ui_MainWindow(QMainWindow):
     def start_meas(self):
         # For Ang sweep measurement
         #Disable "START" button for Field and Angle measurements.
-        #self.pushButton_15b.setDisabled(True)
+        self.pushButton_15b.setDisabled(True)
         self.pushButton_2.setDisabled(True)
         #self.statusLabel_a('Measuring "Angle Sweep" in sample {}'.format(self.lineEdit_2.text()))
         sleep(2)
@@ -320,7 +339,7 @@ class Ui_MainWindow(QMainWindow):
                                 )
         current = self.spinBox_4.value()
         field = self.spinBox_5.value()
-        self.worker = AngleThread(var1=angle_sweep, var2=current, var3=field)
+        self.worker = AngleThread(var1=angle_sweep, var2=field, var3=current)
         self.worker.signals.result.connect(self.update_plot)
         self.worker.signals.finished.connect(self.thread_complete)
         self.worker.signals.progress.connect(self.thread_progress)
@@ -338,14 +357,15 @@ class Ui_MainWindow(QMainWindow):
         print("THREAD COMPLETE!")
         self.statusLabel_a.setText("Finished.")
         self.pushButton_2.setEnabled(True)
+        self.pushButton_15b.setEnabled(True)
 
     def thread_progress(self, value):
-        print("Measuring at angle {}".format(value))
+        print("Measuring at angle {}deg".format(value))
 
 if __name__ == '__main__':
     app = QApplication(sys.argv)
     app.setApplicationName("HallRober - version %s" % __version__)
-    app.setOrganizationDomain("www.github.com/alogiudice/nanorober-py")
+    app.setOrganizationDomain("www.github.com/alogiudice/hallrober")
     app.setWindowIcon(QIcon(os.path.join(os.path.dirname(__file__),
                                                "icons/rober.png")))
     form = Ui_MainWindow()
