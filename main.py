@@ -16,6 +16,7 @@ import equipos as inst
 from time import sleep
 from measureThreads import AngleThread
 #import arMotor as ard
+from initInst import InitializeInstruments
 __version__ = "1.0"
 
 class Ui_MainWindow(QMainWindow):
@@ -134,8 +135,16 @@ class Ui_MainWindow(QMainWindow):
         self.pushButton_2.setCheckable(True)
         self.pushButton_2.setText("Start")
         self.pushButton_2.pressed.connect(self.start_meas)
-        self.AngleSweep_glayout.addWidget(self.pushButton_2, 3, 2, 1, 2)
+        self.AngleSweep_glayout.addWidget(self.pushButton_2, 3, 2, 1, 1)
+        # STOP button
+        self.pushButton_2s = QPushButton(self.AngleSweep)
+        self.pushButton_2s.setCheckable(True)
+        self.pushButton_2s.setDisabled(True)
+        self.pushButton_2s.setText("Stop")
+        self.pushButton_2s.pressed.connect(self.start_meas)
+        self.AngleSweep_glayout.addWidget(self.pushButton_2s, 3, 3, 1, 1)
         # Add grid layout to main AngleSweep Layout
+        self.AngleSweep_layout.addLayout(self.AngleSweep_glayout)
         self.AngleSweep_layout.addLayout(self.AngleSweep_glayout)
         # Plot Layout
         self.AngleSweep_plotLayout = QVBoxLayout(self.AngleSweep)
@@ -252,11 +261,13 @@ class Ui_MainWindow(QMainWindow):
         fileMenu.addAction(savefield_menu)
         helpMenu.addAction(about_menu)
         selectFile_menu.triggered.connect(self.save_Filename)
-        #instrument_menu.triggered.connect(self.initialize_instruments)
+        instrument_menu.triggered.connect(self.initialize_instr_func)
         saveang_menu.triggered.connect(self.write_file)
         about_menu.triggered.connect(self.helpAbout)
     # ENDsetupUi
 
+    def initialize_instr_func(self):
+        InitializeInstruments()
     def update_plot_data(self, data):
         x = self.x[1:]  # Remove the first y element.
         x.append(self.x[-1] + 1)  # Add a new value 1 higher than the last.
@@ -329,6 +340,7 @@ class Ui_MainWindow(QMainWindow):
         #Disable "START" button for Field and Angle measurements.
         self.pushButton_15b.setDisabled(True)
         self.pushButton_2.setDisabled(True)
+        self.pushButton_2s.setEnabled(True)
         #self.statusLabel_a('Measuring "Angle Sweep" in sample {}'.format(self.lineEdit_2.text()))
         sleep(2)
         ## Thread start
@@ -339,10 +351,12 @@ class Ui_MainWindow(QMainWindow):
                                 )
         current = self.spinBox_4.value()
         field = self.spinBox_5.value()
-        self.worker = AngleThread(var1=angle_sweep, var2=field, var3=current)
+        num_meas = self.spinBox_6.value()
+        self.worker = AngleThread(var1=angle_sweep, var2=field, var3=current, var4=num_meas)
         self.worker.signals.result.connect(self.update_plot)
         self.worker.signals.finished.connect(self.thread_complete)
         self.worker.signals.progress.connect(self.thread_progress)
+        self.pushButton_2s.clicked.connect(self.worker.finish_run)
         self.threadpool.start(self.worker)
 
     def update_plot(self, s):
@@ -358,6 +372,17 @@ class Ui_MainWindow(QMainWindow):
         self.statusLabel_a.setText("Finished.")
         self.pushButton_2.setEnabled(True)
         self.pushButton_15b.setEnabled(True)
+        finished = QMessageBox()
+        ico = os.path.join(os.path.dirname(__file__), "icons/medium.png")
+        pixmap = QPixmap(ico).scaledToHeight(128,
+                                             Qt.SmoothTransformation)
+        finished.setIconPixmap(pixmap)
+        finished.setWindowTitle("Finished")
+        finished.setText('Angle measurement has\n finished '
+                        'successfully!')
+        finished.setStandardButtons(QMessageBox.Ok)
+        finished.buttonClicked.connect(finished.close)
+        finished.exec_()
 
     def thread_progress(self, value):
         print("Measuring at angle {}deg".format(value))
