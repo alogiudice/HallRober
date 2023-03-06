@@ -4,18 +4,13 @@ from PyQt5.QtGui import *
 from PyQt5.QtWidgets import *
 import sys
 import os
-from pyqtgraph import PlotWidget, plot
 import pyqtgraph as pg
 import numpy as np
 from pathlib import Path
-from random import randint
 from datetime import date
 from csv import writer, QUOTE_NONE
-import pyvisa
-import equipos as inst
 from time import sleep
-from measureThreads import AngleThread
-#import arMotor as ard
+from measureThreads import AngleThread, FieldThread
 from initInst import InitializeInstruments
 __version__ = "1.0"
 
@@ -24,8 +19,6 @@ class Ui_MainWindow(QMainWindow):
         super().__init__()
         self.threadpool = QThreadPool()
         self.setupUi()
-        self.x = list(np.arange(5))
-        self.y = list(np.zeros(5))
 
     def setupUi(self):
         if not self.objectName():
@@ -134,14 +127,13 @@ class Ui_MainWindow(QMainWindow):
         self.pushButton_2 = QPushButton(self.AngleSweep)
         self.pushButton_2.setCheckable(True)
         self.pushButton_2.setText("Start")
-        self.pushButton_2.pressed.connect(self.start_meas)
+        self.pushButton_2.pressed.connect(lambda: self.start_meas("Angle"))
         self.AngleSweep_glayout.addWidget(self.pushButton_2, 3, 2, 1, 1)
         # STOP button
         self.pushButton_2s = QPushButton(self.AngleSweep)
         self.pushButton_2s.setCheckable(True)
         self.pushButton_2s.setDisabled(True)
         self.pushButton_2s.setText("Stop")
-        self.pushButton_2s.pressed.connect(self.start_meas)
         self.AngleSweep_glayout.addWidget(self.pushButton_2s, 3, 3, 1, 1)
         # Add grid layout to main AngleSweep Layout
         self.AngleSweep_layout.addLayout(self.AngleSweep_glayout)
@@ -150,16 +142,16 @@ class Ui_MainWindow(QMainWindow):
         self.AngleSweep_plotLayout = QVBoxLayout(self.AngleSweep)
         self.plotwid = pg.PlotWidget(self.AngleSweep)
         self.plotwid.setBackground('w')
-        self.plotwid_pen = pg.mkPen(color=(255, 0, 0), width=3)
-        self.plotwid_curve = self.plotwid.plot([],[], pen=self.plotwid_pen)
+        self.plotwid_curve = pg.ScatterPlotItem(size=5,
+                                                brush=pg.mkBrush(30, 255, 0, 255))
+        self.plotwid.addItem(self.plotwid_curve)
         self.plotwid.setLabel('left', 'Voltage [V]')
         self.plotwid.setLabel('bottom', 'Angle (Deg)')
         self.AngleSweep_plotLayout.addWidget(self.plotwid)
 
         self.statusLabel_a = QLabel(self.AngleSweep)
         self.statusLabel_a.setText("Ready")
-        self.AngleSweep_plotLayout.addWidget(self.statusLabel_a
-                                             )
+        self.AngleSweep_plotLayout.addWidget(self.statusLabel_a)
         # Add plot layout to main AngleSweep Layout
         self.AngleSweep_layout.addLayout(self.AngleSweep_plotLayout)
         self.AngleSweep.setLayout(self.AngleSweep_layout)
@@ -223,17 +215,25 @@ class Ui_MainWindow(QMainWindow):
         self.FieldSweep_glayout.addWidget(self.label_14b, 3, 1, 1, 1)
         self.pushButton_15b = QPushButton(self.FieldSweep)
         self.pushButton_15b.setText("Start")
-        self.FieldSweep_glayout.addWidget(self.pushButton_15b, 3, 2, 2, 1)
+        # STOP button
+        self.pushButton_15s = QPushButton(self.AngleSweep)
+        self.pushButton_15s.setCheckable(True)
+        self.pushButton_15s.setDisabled(True)
+        self.pushButton_15s.setText("Stop")
+        self.pushButton_15b.pressed.connect(lambda: self.start_meas("Field"))
+        self.FieldSweep_glayout.addWidget(self.pushButton_15b, 3, 2, 1, 1)
+        self.FieldSweep_glayout.addWidget(self.pushButton_15s, 3, 3, 1, 1)
         self.FieldSweep_layout.addLayout(self.FieldSweep_glayout)
         # Plot for the Field sweep
         self.FieldSweep_plotLayout = QVBoxLayout(self.FieldSweep)
         self.plotwid_2 = pg.PlotWidget(self.FieldSweep)
-        self.plotwid_2_curve = self.plotwid_2.plot([],[])
+        self.plotwid_2_curve = pg.ScatterPlotItem(size=5,
+                                                  brush=pg.mkBrush(30, 0, 200, 200))
+        self.plotwid_2.addItem(self.plotwid_2_curve)
         self.plotwid_2.setBackground('w')
         self.plotwid_2.setLabel('left', 'Voltage [V]')
         self.plotwid_2.setLabel('bottom', 'Field (G)')
         self.FieldSweep_plotLayout.addWidget(self.plotwid_2)
-        self.fieldCurve = self.plotwid_2.getPlotItem().plot()
         self.statusLabel_b = QLabel(self.FieldSweep)
         self.statusLabel_b.setText("Ready")
         self.FieldSweep_plotLayout.addWidget(self.statusLabel_b)
@@ -252,7 +252,7 @@ class Ui_MainWindow(QMainWindow):
         menubar.addMenu(helpMenu)
         selectFile_menu = QAction("Select Filename", fileMenu)
         instrument_menu = QAction("Initialize instruments", fileMenu)
-        saveang_menu = QAction("Save V vs angle measurements", fileMenu)
+        saveang_menu = QAction("Save V vs Angle measurements", fileMenu)
         savefield_menu = QAction("Save V vs Field measurments", fileMenu)
         about_menu = QAction("About HallRober", helpMenu)
         fileMenu.addAction(selectFile_menu)
@@ -262,22 +262,20 @@ class Ui_MainWindow(QMainWindow):
         helpMenu.addAction(about_menu)
         selectFile_menu.triggered.connect(self.save_Filename)
         instrument_menu.triggered.connect(self.initialize_instr_func)
-        saveang_menu.triggered.connect(self.write_file)
+        saveang_menu.triggered.connect(lambda: self.write_file(meas='Angle'))
+        savefield_menu.triggered.connect(lambda: self.write_file(meas='Field'))
         about_menu.triggered.connect(self.helpAbout)
     # ENDsetupUi
 
     def initialize_instr_func(self):
-        InitializeInstruments()
-    def update_plot_data(self, data):
-        x = self.x[1:]  # Remove the first y element.
-        x.append(self.x[-1] + 1)  # Add a new value 1 higher than the last.
-        y = self.y[1:]  # Remove the first
-        y.append(randint(0, 100))  # Add a new random value.
-        self.fieldCurve.setData(data) # Update the data.
+        # We get the instruments' addresses with this func.
+        self.insts_init = InitializeInstruments()
+        # We can access the insts' addresses afterwards with:
+        # (e.g) self.insts_init.multimeter
 
     def helpAbout(self):
         msg = QMessageBox.about(self, "About NanoRober",
-                                    """<b>HallRober - Measuring PHE</b> 
+                                    """<b>HallRober - Measuring the Planar Hall Effect.</b> 
                                     <p>Version %s (2023) by Agostina Lo Giudice.
                                     (logiudic@tandar.cnea.gov.ar)
                                     <p>This program is distributed under the GNU 
@@ -294,7 +292,7 @@ class Ui_MainWindow(QMainWindow):
             self.lineEdit_fname.setText(str(path))
             print('File path: {}'.format(path))
 
-    def write_file(self):
+    def write_file(self, meas):
         # Writing the obtained results to a file.
         try:
             file = open(self.lineEdit_fname.text(), 'w')
@@ -311,65 +309,123 @@ class Ui_MainWindow(QMainWindow):
             warn.buttonClicked.connect(warn.close)
             warn.exec_()
         else:
-            contents = [['Date: {}'.format(date.today())],
-                        ['Sample name: {}'.format(self.lineEdit_2.text())],
-                        ['Type of Measurement: {}'.format(self.comboBox_measure.currentText())],
-                        ['-DATA START-'],
-                        ['Applied Current: {} uA'.format(self.spinBox_4.value())],
-                        ['Applied Field: {} G'.format(self.spinBox_5.value())],
-                        ['Number of Measurements per angle: {}'.format(self.spinBox_6.value())],
-                        ['Start Angle: {} deg'.format(self.spinBox.value())],
-                        ['End Angle: {} deg'.format(self.spinBox_2.value())],
-                        ['Angle Step: {} deg'.format(self.spinBox_3.value())]
-                        ]
-            wr = writer(file, delimiter=',', quoting=QUOTE_NONE, escapechar='\\')
-            for row in contents:
-                wr.writerow(row)
-            wr.writerow(['Angle (deg),Hall Voltage (V)'])
-            data = zip(self.x, self.y)
-            wr.writerows(data)
-            print('Data written to {}'.format(self.lineEdit_fname.text()))
-            file.close()
+            if meas == 'Angle':
+                contents = [['Date: {}'.format(date.today())],
+                            ['Sample name: {}'.format(self.lineEdit_2.text())],
+                            ['Type of Measurement: {}'.format(self.comboBox_measure.currentText())],
+                            ['-DATA START-'],
+                            ['Applied Current: {} uA'.format(self.spinBox_4.value())],
+                            ['Applied Field: {} G'.format(self.spinBox_5.value())],
+                            ['Number of Measurements per angle: {}'.format(self.spinBox_6.value())],
+                            ['Start Angle: {} deg'.format(self.spinBox.value())],
+                            ['End Angle: {} deg'.format(self.spinBox_2.value())],
+                            ['Angle Step: {} deg'.format(self.spinBox_3.value())]
+                            ]
+                wr = writer(file, delimiter=',', quoting=QUOTE_NONE, escapechar='\\')
+                for row in contents:
+                    wr.writerow(row)
+                wr.writerow(['Angle (deg),Hall Voltage (V)'])
+                data = zip(self.angle_sweep, self.volt_angsweep)
+                wr.writerows(data)
+                print('Data written to {}'.format(self.lineEdit_fname.text()))
+                file.close()
+            elif meas == 'Field':
+                contents = [['Date: {}'.format(date.today())],
+                            ['Sample name: {}'.format(self.lineEdit_2.text())],
+                            ['Type of Measurement: {}'.format('Field')],
+                            ['-DATA START-'],
+                            ['Applied Current: {} uA'.format(self.spinBox_12b.value())],
+                            ['Sample Angle: {} G'.format(self.spinBox_4b.value())],
+                            ['Number of Measurements per angle: {}'.format(self.spinBox_8b.value())],
+                            ['Start Field: {} deg'.format(self.spinBox_2b.value())],
+                            ['End Field: {} deg'.format(self.spinBox_6b.value())],
+                            ['Field Step: {} deg'.format(self.spinBox_10b.value())]
+                            ]
+                wr = writer(file, delimiter=',', quoting=QUOTE_NONE, escapechar='\\')
+                for row in contents:
+                    wr.writerow(row)
+                wr.writerow(['Field (deg),Hall Voltage (V)'])
+                data = zip(self.field_sweep, self.volt_fiesweep)
+                wr.writerows(data)
+                print('Data written to {}'.format(self.lineEdit_fname.text()))
+                file.close()
 
     def change_layout(self):
         #Change layout when "measure" combobox is changed
         self.stackedLayout.setCurrentIndex(self.comboBox_measure.currentIndex())
 
-    def start_meas(self):
+    def start_meas(self, meas_type):
+        # For updating the counter needed to save voltage values to array.
         # For Ang sweep measurement
-        #Disable "START" button for Field and Angle measurements.
-        self.pushButton_15b.setDisabled(True)
-        self.pushButton_2.setDisabled(True)
-        self.pushButton_2s.setEnabled(True)
-        #self.statusLabel_a('Measuring "Angle Sweep" in sample {}'.format(self.lineEdit_2.text()))
-        sleep(2)
-        ## Thread start
-        # Define the list of angles we will sweep through.
-        angle_sweep = np.arange(self.spinBox.value(),
-                                self.spinBox_2.value(),
-                                self.spinBox_3.value()
-                                )
-        current = self.spinBox_4.value()
-        field = self.spinBox_5.value()
-        num_meas = self.spinBox_6.value()
-        self.worker = AngleThread(var1=angle_sweep, var2=field, var3=current, var4=num_meas)
-        self.worker.signals.result.connect(self.update_plot)
-        self.worker.signals.finished.connect(self.thread_complete)
-        self.worker.signals.progress.connect(self.thread_progress)
-        self.pushButton_2s.clicked.connect(self.worker.finish_run)
-        self.threadpool.start(self.worker)
+        if meas_type == "Angle":
+            #Disable "START" button for Field and Angle measurements.
+            # 15b = start button for Field meas
+            # 2 = start button for Angle meas
+            # 2s = stop button for Angle meas
+            self.pushButton_15b.setDisabled(True)
+            self.pushButton_2.setDisabled(True)
+            self.pushButton_2s.setEnabled(True)
+            sleep(2)
+            ## Thread start
+            # Define the list of angles we will sweep through.
+            self.angle_sweep = np.arange(self.spinBox.value(),
+                                        self.spinBox_2.value(),
+                                        self.spinBox_3.value()
+                                        )
+            # Array in which we'll store the measured voltage.
+            self.volt_angsweep = []
+            current = self.spinBox_4.value()
+            field = self.spinBox_5.value()
+            num_meas = self.spinBox_6.value()
+            self.worker = AngleThread(var1=self.angle_sweep, var2=field,
+                                      var3=current, var4=num_meas)
+            self.worker.signals.result.connect(self.update_plot_angle)
+            self.worker.signals.finished.connect(self.thread_complete)
+            self.worker.signals.progress.connect(self.thread_progress)
+            self.pushButton_2s.clicked.connect(self.worker.finish_run)
+            self.threadpool.start(self.worker)
+        elif meas_type == "Field":
+            # Disable "START" button for Field and Angle measurements.
+            # 15b = start button for Field meas
+            # 2 = start button for Angle meas
+            # 15s = stop button for Field meas
+            self.pushButton_15b.setDisabled(True)
+            self.pushButton_2.setDisabled(True)
+            self.pushButton_15s.setEnabled(True)
+            sleep(2)
+            ## Thread start
+            # Define the list of angles we will sweep through.
+            self.field_sweep = np.arange(self.spinBox_2b.value(),
+                                        self.spinBox_6b.value(),
+                                        self.spinBox_10b.value()
+                                        )
+            # Array in which we'll store the measured voltage.
+            self.volt_fiesweep = []
+            current = self.spinBox_12b.value()
+            angle = self.spinBox_4b.value()
+            num_meas = self.spinBox_8b.value()
+            self.worker = FieldThread(var1=self.field_sweep, var2=current,
+                                      var3=angle, var4=num_meas)
+            self.worker.signals.result.connect(self.update_plot_field)
+            self.worker.signals.finished.connect(self.thread_complete)
+            self.worker.signals.progress.connect(self.thread_progress)
+            self.pushButton_15s.clicked.connect(self.worker.finish_run)
+            self.threadpool.start(self.worker)
 
-    def update_plot(self, s):
+    def update_plot_angle(self, s):
         self.statusLabel_a.setText("Busy")
-        self.x = self.x[1:]  # Remove the first y element.
-        self.x.append(self.x[-1] + 1)  # Add a new value 1 higher than the last.
-        self.y = self.y[1:]  # Remove the first
-        self.y.append(s)
-        self.plotwid_curve.setData(self.x, self.y)
+        self.plotwid_curve.addPoints([s[0]], [s[1]])
+        self.volt_angsweep.append(s[1])
+
+    def update_plot_field(self, s):
+        self.statusLabel_b.setText("Busy")
+        self.plotwid_2_curve.addPoints([s[0]], [s[1]])
+        self.volt_fiesweep.append(s[1])
 
     def thread_complete(self):
         print("THREAD COMPLETE!")
         self.statusLabel_a.setText("Finished.")
+        self.statusLabel_b.setText("Finished.")
         self.pushButton_2.setEnabled(True)
         self.pushButton_15b.setEnabled(True)
         finished = QMessageBox()
@@ -378,14 +434,14 @@ class Ui_MainWindow(QMainWindow):
                                              Qt.SmoothTransformation)
         finished.setIconPixmap(pixmap)
         finished.setWindowTitle("Finished")
-        finished.setText('Angle measurement has\n finished '
+        finished.setText('Measurement has\n finished '
                         'successfully!')
         finished.setStandardButtons(QMessageBox.Ok)
         finished.buttonClicked.connect(finished.close)
         finished.exec_()
 
     def thread_progress(self, value):
-        print("Measuring at angle {}deg".format(value))
+        print("Measuring at angle/field: {%f}".format(value))
 
 if __name__ == '__main__':
     app = QApplication(sys.argv)
