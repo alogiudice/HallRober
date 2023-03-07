@@ -14,6 +14,7 @@ from measureThreads import AngleThread, FieldThread
 from initInst import InitializeInstruments
 __version__ = "1.0"
 
+
 class Ui_MainWindow(QMainWindow):
     def __init__(self, parent=None):
         super().__init__()
@@ -125,7 +126,8 @@ class Ui_MainWindow(QMainWindow):
         self.AngleSweep_glayout.addWidget(self.label_11, 3, 1, 1, 1)
         # "START" button config for AngleSweep
         self.pushButton_2 = QPushButton(self.AngleSweep)
-        self.pushButton_2.setCheckable(True)
+        self.pushButton_2.setToolTip("You have to initialize the instruments first.")
+        self.pushButton_2.setDisabled(True)
         self.pushButton_2.setText("Start")
         self.pushButton_2.pressed.connect(lambda: self.start_meas("Angle"))
         self.AngleSweep_glayout.addWidget(self.pushButton_2, 3, 2, 1, 1)
@@ -215,6 +217,8 @@ class Ui_MainWindow(QMainWindow):
         self.FieldSweep_glayout.addWidget(self.label_14b, 3, 1, 1, 1)
         self.pushButton_15b = QPushButton(self.FieldSweep)
         self.pushButton_15b.setText("Start")
+        self.pushButton_15b.setToolTip("You need to initialize the instruments first.")
+        self.pushButton_15b.setDisabled(True)
         # STOP button
         self.pushButton_15s = QPushButton(self.AngleSweep)
         self.pushButton_15s.setCheckable(True)
@@ -267,11 +271,17 @@ class Ui_MainWindow(QMainWindow):
         about_menu.triggered.connect(self.helpAbout)
     # ENDsetupUi
 
+    @pyqtSlot()
     def initialize_instr_func(self):
         # We get the instruments' addresses with this func.
-        self.insts_init = InitializeInstruments()
+        self.insts_init = InitializeInstruments(self)
+        self.insts_init.setModal(True)
+        self.insts_init.signals.isconfig.connect(self.inst_init_finished)
         # We can access the insts' addresses afterwards with:
         # (e.g) self.insts_init.multimeter
+
+    def test(self, y):
+        print(y)
 
     def helpAbout(self):
         msg = QMessageBox.about(self, "About NanoRober",
@@ -373,6 +383,7 @@ class Ui_MainWindow(QMainWindow):
                                         self.spinBox_3.value()
                                         )
             # Array in which we'll store the measured voltage.
+            # We only init it when we press "start".
             self.volt_angsweep = []
             current = self.spinBox_4.value()
             field = self.spinBox_5.value()
@@ -441,7 +452,16 @@ class Ui_MainWindow(QMainWindow):
         finished.exec_()
 
     def thread_progress(self, value):
-        print("Measuring at angle/field: {%f}".format(value))
+        print("Measuring at angle/field: {}".format(value))
+
+    def inst_init_finished(self):
+        # This function should be run when the "Initialize Instruments"
+        # has been completed successfully
+        # In that case, the "START" buttons should be enabled.
+        print("Signal received from InitInst")
+        self.pushButton_2.setEnabled(True)
+        self.pushButton_15b.setEnabled(True)
+
 
 if __name__ == '__main__':
     app = QApplication(sys.argv)

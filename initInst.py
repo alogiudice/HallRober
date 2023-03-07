@@ -2,8 +2,7 @@ import equipos as inst
 from PyQt5.QtWidgets import QDialog, QVBoxLayout, QGridLayout, QTextBrowser, QLabel, \
     QComboBox, QPushButton, QMessageBox, QStyle, qApp
 from PyQt5.QtGui import QPixmap
-#import PyQt5.QtCore
-from PyQt5.QtCore import Qt
+from PyQt5.QtCore import Qt, pyqtSignal, QObject, pyqtSlot
 import pyvisa
 import re
 import configparser
@@ -14,6 +13,8 @@ class ComboBox(QComboBox):
     def addItem(self, item):
         if item not in self.get_set_items():
             super(ComboBox, self).addItem(item)
+        if item is None:
+            pass
 
     def addItems(self, items):
         items = list(self.get_set_items() | set(items))
@@ -22,13 +23,21 @@ class ComboBox(QComboBox):
     def get_set_items(self):
         return set([self.itemText(i) for i in range(self.count())])
 
-class InitializeInstruments:
-    def __init__(self):
+class initInstSignals(QObject):
+    # Because the implementation of signals in pyqt is absolute sh*t
+    # PyQt9 has come out, and we STILL have to define signals outside of init
+    # if not it doesn't work. yay
+    isconfig = pyqtSignal(str)
+
+class InitializeInstruments(QDialog):
+    def __init__(self, parent):
+        super(InitializeInstruments, self).__init__(parent=parent)
         self.config = configparser.ConfigParser()
         # If no config file is present, we create a new one
         # List the different instruments connected to the PC.
+        self.signals = initInstSignals()
         self.rm = pyvisa.ResourceManager('@py')
-        self.info = self.rm.list_resources()
+        self.info = list(self.rm.list_resources())
         self.dialog_inst = QDialog()
         self.dialog_inst.setWindowTitle("Instruments")
         frame_inst = QVBoxLayout(self.dialog_inst)
@@ -57,7 +66,7 @@ class InitializeInstruments:
         self.find_config_file()
         i = 1
         for item in self.info:
-            text_inst_output.append('{}) dir: {}\n'.format(i, item))
+            text_inst_output.append('{}) addr: {}\n'.format(i, item))
             self.choice1.addItem(item)
             self.choice2.addItem(item)
             self.choice3.addItem(item)
@@ -91,13 +100,21 @@ class InitializeInstruments:
         frame_inst.addWidget(self.status_label)
         self.dialog_inst.setLayout(frame_inst)
         self.dialog_inst.setFixedSize(600, 400)
-        self.dialog_inst.exec_()
+        #self.dialog_inst.exec_()
+        # WTF
+        # El solo hecho de cambiar exec a show hizo que FUNCIONARAN
+        # los slots correctamente!
+        self.dialog_inst.show()
 
     def create_who_button(self):
         button = QPushButton(self.dialog_inst)
         button.setIcon(qApp.style().standardIcon(QStyle.SP_MessageBoxQuestion))
         button.setToolTip("Who am I?")
         return button
+
+    def send_signal(self):
+        self.signals.isconfig.emit('Signal!')
+        print("Signal sent!")
 
     def find_config_file(self):
         # Try to open/find existing config file. If not found, create from scratch
@@ -109,28 +126,32 @@ class InitializeInstruments:
             cc_coils = self.config['DEFAULT']['CurrentCoils']
             multi = self.config['DEFAULT']['Multimeter']
             arduino = self.config['DEFAULT']['Arduino']
-            #These values will be the first ones to appear on the ComboBox lists.
-            #if they are empty, nothing will be added.
+            # The new combobox should already filter all repeated values
+            # and None values.
+            self.instpool = list(self.info)
+            [self.instpool.append(n) for n in [multi, cc_sample, cc_coils, arduino]]
+            [self.choice1.addItem(n) for n in [multi, cc_sample, cc_coils, arduino]]
+            [self.choice2.addItem(n) for n in [multi, cc_sample, cc_coils, arduino]]
+            [self.choice3.addItem(n) for n in [multi, cc_sample, cc_coils, arduino]]
+            [self.choice4.addItem(n) for n in [multi, cc_sample, cc_coils, arduino]]
             if multi:
-                self.choice1.addItem(multi)
-                self.choice1.setCurrentIndex(0)
+                self.choice1.setCurrentIndex(self.instpool.index(multi))
             if cc_sample:
-                self.choice2.addItem(cc_sample)
-                self.choice2.setCurrentIndex(0)
+                self.choice2.setCurrentIndex(self.instpool.index(cc_sample))
             if cc_coils:
-                self.choice3.addItem(cc_coils)
-                self.choice3.setCurrentIndex(0)
+                self.choice3.setCurrentIndex(self.instpool.index(cc_coils))
             if arduino:
-                self.choice4.addItem(arduino)
-                self.choice4.setCurrentIndex(0)
+                self.choice4.setCurrentIndex(self.instpool.index(arduino))
         else:
             self.status_label.setText("No config file found. Creating a new one.")
             self.config['DEFAULT'] = {'currentsample': '',
-                                 'currentcoils': '',
-                                 'multimeter': '',
-                                 'arduino': ''}
+                                      'currentcoils': '',
+                                      'multimeter': '',
+                                      'arduino': ''
+                                      }
             with open('config.cfg', 'w') as file:
                 self.config.write(file)
+
     def auto_guess(self):
         # We get the "IDN?" strings from each instrument and guess
         # which instrument it actually is.
@@ -171,10 +192,12 @@ class InitializeInstruments:
 
     def getInstruments(self):
         # First, we check that we actually have four instruments selected.
-        if len(self.info) < 3:
+        # DEBUG: len(self.info) > 3:
+        # Change to < 3 when ready to use Pyvisa!!!!!!
+        if len(self.info) > 3:
             self.less_than_three_inst_warn()
             return
-        #If we have four instruments as needed, we proceed to check if each one
+        # If we have four instruments as needed, we proceed to check if each one
         # has been selected only once.
         inst1 = self.choice1.currentText()
         inst2 = self.choice2.currentText()
@@ -187,10 +210,11 @@ class InitializeInstruments:
             # after this condition is met.
             # We don't do it before to avoid passing wrong addresses
             # of instruments to MainWindow.
+            self.multimeter = inst1
             self.currentSample = inst2
             self.currentCoils = inst3
-            self.multimeter = inst1
             self.arduino = inst4
+
             # Write new config file parameters
             self.config['DEFAULT']['multimeter'] = inst1
             self.config['DEFAULT']['currentsample'] = inst2
@@ -200,7 +224,9 @@ class InitializeInstruments:
                 self.config.write(file)
             # Close pyvisa resource manager.
             self.rm.close()
-            self.dialog_inst.close()
+            # Emit closing signal
+            self.send_signal()
+            self.dialog_inst.accept()
         else:
             warn = QMessageBox()
             warn.setWindowTitle('Error')

@@ -64,8 +64,7 @@ class AngleThread(QRunnable):
         for angle in self.angle:
             self.armot.set_angle(angle)
             mean, std = inst.mean_voltage(self.number_meas, self.multimeter)
-            self.signals.result.emit(mean)
-            self.signals.result2.emit(std)
+            self.signals.result.emit([angle, mean, std])
         self.signals.finished.emit()
 
 
