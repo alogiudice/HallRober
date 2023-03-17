@@ -15,6 +15,8 @@ class ComboBox(QComboBox):
             super(ComboBox, self).addItem(item)
         if item is None:
             pass
+        if not str(item):
+            pass
 
     def addItems(self, items):
         items = list(self.get_set_items() | set(items))
@@ -64,14 +66,19 @@ class InitializeInstruments(QDialog):
         self.status_label = QLabel()
         self.status_label.setText("test")
         self.find_config_file()
-        i = 1
+        i = 0
         for item in self.info:
-            text_inst_output.append('{}) addr: {}\n'.format(i, item))
+            text_inst_output.append('{}) address: {}\n'.format(i, item))
+            print(item)
             self.choice1.addItem(item)
             self.choice2.addItem(item)
             self.choice3.addItem(item)
             self.choice4.addItem(item)
-            ++i
+            i += 1
+        self.choice1.setCurrentIndex(1)
+        self.choice2.setCurrentIndex(1)
+        self.choice3.setCurrentIndex(1)
+        self.choice4.setCurrentIndex(1)
         frame_inst.addWidget(init_text)
         frame_inst.addWidget(text_inst_output)
         inputs.addWidget(label1, 0, 0, 1, 1)
@@ -157,44 +164,45 @@ class InitializeInstruments(QDialog):
         # which instrument it actually is.
         # self.info is the list of instruments. We will open each and run regex
         # Patters should have inst manuf occurrence + model number
-        if len(self.info) < 3:
+        if len(self.info) > 3:
             self.less_than_three_inst_warn()
             return 1
-        pattern_ccsource = re.compile("(?=.*Keithley)(?=.*6221)")
-        pattern_multimeter = re.compile("(?=.*Keithley)(?=.*2010)")
+        pattern_ccsource = re.compile("MODEL 6220")
+        pattern_multimeter = re.compile("MODEL 2010")
         pattern_hcsource = re.compile("(?=.*Agilent)(?=.*6221)")
+        pattern_notInst = re.compile("ttyS0")
         for ind, item in enumerate(self.info):
-            ins = self.rm.open_resource(item)
-            ins.write_termination='\n'
-            try:
-                ins.write('*IDN?\n')
-                st = ins.read_raw()
-                print("IDN output for instrument: {}".format(st))
-            except:
-                print("ERROR! Couldn't write info to instrument {}. "
-                      "Is it an instrument? This also will happen with "
-                      "the Arduino board".format(item))
+            print('{} and {}'.format(ind, item))
+            if pattern_notInst.search(item) is not None:
+                print("{} probably not an instrument. Pass.".format(item))
                 pass
-            if pattern_hcsource.match(st, re.IGNORECASE) is not None:
+        else:
+            ins = self.rm.open_resource(item)
+            print("Open resource {}".format(item))
+            ins.write('*IDN?')
+            st = str(ins.read_raw())
+            print("IDN output for instrument: {}".format(st))
+            # Dunno why, but first comboBox item is blank
+            if pattern_hcsource.search(st, re.IGNORECASE) is not None:
                 print("Current source for HCoils is {}".format(item))
-                self.choice3.setCurrentIndex(ind)
-            elif pattern_multimeter.match(st, re.IGNORECASE) is not None:
+
+                self.choice3.setCurrentIndex(ind+1)
+            elif pattern_multimeter.search(st, re.IGNORECASE) is not None:
                 print("Multimeter is {}".format(item))
-                self.choice1.setCurrentIndex(ind)
-            elif pattern_ccsource.match(st, re.IGNORECASE) is not None:
+                self.choice1.setCurrentIndex(ind+1)
+            elif pattern_ccsource.search(st, re.IGNORECASE) is not None:
                 print("Current source for sample is {}".format(item))
-                self.choice2.setCurrentIndex(ind)
+                self.choice2.setCurrentIndex(ind+1)
             else:
                 print("ERROR: Couldn't match the instrument's identity ({}) with any recognized "
                       "instruments.".format(st))
-
         # TODO: Find a way to autoguess the arduino address.
 
     def getInstruments(self):
         # First, we check that we actually have four instruments selected.
         # DEBUG: len(self.info) > 3:
         # Change to < 3 when ready to use Pyvisa!!!!!!
-        if len(self.info) > 3:
+        if len(self.info) < 3:
             self.less_than_three_inst_warn()
             return
         # If we have four instruments as needed, we proceed to check if each one
