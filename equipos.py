@@ -28,6 +28,9 @@ class Keithley6221:
         
     def current_on(self):
         self.inst.write('OUTput ON')
+
+    def current_off(self):
+        self.inst.write('OUTput OFF')
         
         
 class Fuente_Siglent:
@@ -45,10 +48,16 @@ class Fuente_Siglent:
         
     def channel_2_on(self):
         self.instf.write('OUTP CH2,ON')
-    
+
+    def channel_2_off(self):
+        self.instf.write('OUTP CH2,OFF')
+
     def channel_1_on(self):
         self.instf.write('OUTP CH1,ON')
-        
+
+    def channel_1_off(self):
+        self.instf.write('OUTP CH1,OFF')
+
     def set_channel(self, num):
         self.instf.write('INSTrument CH{}'.format(num))
         
@@ -158,7 +167,8 @@ def mean_voltage(sample_num, multi):
 
 def field_to_voltage(field):
     # Using last calibration.
-    volt = truncate(((field + 0.0497) / 3.286), decimals=3)
+    # volt = truncate(((field + 0.0497) / 3.286), decimals=3)
+    volt = ((field + 0.0497) / 3.286)
     return volt
 
 def field_to_current(field):

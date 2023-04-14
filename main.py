@@ -277,8 +277,8 @@ class Ui_MainWindow(QMainWindow):
         self.insts_init = InitializeInstruments(self)
         self.insts_init.setModal(True)
         self.insts_init.signals.isconfig.connect(self.inst_init_finished)
-        # We can access the insts' addresses afterwards with:
-        # (e.g) self.insts_init.multimeter
+        # We can access the insts' address list afterwards with:
+        # (e.g) self.instrument_list
 
     def test(self, y):
         print(y)
@@ -355,7 +355,7 @@ class Ui_MainWindow(QMainWindow):
                 for row in contents:
                     wr.writerow(row)
                 wr.writerow(['Field (deg),Hall Voltage (V)'])
-                data = zip(self.field_sweep, self.volt_fiesweep)
+                data = zip(self.field_sweep, self.volt_fieldsweep)
                 wr.writerows(data)
                 print('Data written to {}'.format(self.lineEdit_fname.text()))
                 file.close()
@@ -411,12 +411,13 @@ class Ui_MainWindow(QMainWindow):
                                         self.spinBox_10b.value()
                                         )
             # Array in which we'll store the measured voltage.
-            self.volt_fiesweep = []
+            self.volt_fieldsweep = []
             current = self.spinBox_12b.value()
             angle = self.spinBox_4b.value()
             num_meas = self.spinBox_8b.value()
             self.worker = FieldThread(var1=self.field_sweep, var2=current,
-                                      var3=angle, var4=num_meas)
+                                      var3=angle, var4=num_meas,
+                                      var5 = self.insts_init.instrument_list)
             self.worker.signals.result.connect(self.update_plot_field)
             self.worker.signals.finished.connect(self.thread_complete)
             self.worker.signals.progress.connect(self.thread_progress)
@@ -431,7 +432,7 @@ class Ui_MainWindow(QMainWindow):
     def update_plot_field(self, s):
         self.statusLabel_b.setText("Busy")
         self.plotwid_2_curve.addPoints([s[0]], [s[1]])
-        self.volt_fiesweep.append(s[1])
+        self.volt_fieldsweep.append(s[1])
 
     def thread_complete(self):
         print("THREAD COMPLETE!")

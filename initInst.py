@@ -171,6 +171,7 @@ class InitializeInstruments(QDialog):
         pattern_multimeter = re.compile("MODEL 2010")
         pattern_hcsource = re.compile("(?=.*Agilent)(?=.*6221)")
         pattern_notInst = re.compile("ttyS0")
+        pattern_agilent = re.compile("SPD3303")
         for ind, item in enumerate(self.info):
             print('{} and {}'.format(ind, item))
             if pattern_notInst.search(item) is not None:
@@ -218,11 +219,8 @@ class InitializeInstruments(QDialog):
             # after this condition is met.
             # We don't do it before to avoid passing wrong addresses
             # of instruments to MainWindow.
-            self.multimeter = inst1
-            self.currentSample = inst2
-            self.currentCoils = inst3
-            self.arduino = inst4
-
+            # Write this LIST with the names of each instrument to use afterwards on the thread.
+            self.instrument_list = [inst1, inst2, inst3, inst4]
             # Write new config file parameters
             self.config['DEFAULT']['multimeter'] = inst1
             self.config['DEFAULT']['currentsample'] = inst2
