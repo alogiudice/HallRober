@@ -1,48 +1,63 @@
 # class ArduinoM, for controlling the motor using an arduino.
 
 import pyfirmata2 as f
-import StepperLib
+import StepperLib as ar
+from time import sleep
 
 class ArduinoM:
-    def __init__(self, stri):
+    def __init__(self, stri, pin_1, pin_2, pin_3, pin_4):
         self.board = f.Arduino(stri)
-        reader = f.util.Iterator(self.board)
-        reader.start()
-        self.motor = StepperLib.Stepper(2038, self.board, reader, 2, 3, 4, 5)
-        self.motor.set_speed(10000)
-        # 0 and 1 are the analog pin  you may need to change them
-        self.photo_1 = self.board.get_pin('a:0:i')
-        self.photo_2 = self.board.get_pin('a:1:i')
-        # adjustment is based on seeing what the rough difference in base
-        # values of the two photoresistors is
-        adjustment = 100
+        self.reader = f.util.Iterator(self.board)
+        self.reader.start()
+        self.pin_1 = self.board.get_pin('d:%s:o' % (pin_1))
+        self.pin_2 = self.board.get_pin('d:%s:o' % (pin_2))
+        self.pin_3 = self.board.get_pin('d:%s:o' % (pin_3))
+        self.pin_4 = self.board.get_pin('d:%s:o' % (pin_4))
+        self.steps_moved = 0
 
-    def set_angle(self, number):
-        print('Angle set to...')
-        while 1 == 1:
-            input_one = str(self.photo_1.read())
-            # initial values for the photoresistors are "None", so that needs to be eliminated so only numbers
-            # are read as values, and then the number is divided by 10 so that it is smaller and easier to work with
-            if input_one != "None":
-                input_one = input_one[2:6]
-                input_1 = int(input_one) / 10
-            elif input_one == "None":
-                input_1 = 0
-            input_two = str(self.photo_2.read())
-            if input_two != "None":
-                input_two = input_two[2:6]
-                input_2 = int(input_two) / 10
-            elif input_two == "None":
-                input_2 = 0
+    def step(self, a, b, c, d, delay):
+        self.pin_1.write(a)
+        self.pin_2.write(b)
+        self.pin_3.write(c)
+        self.pin_4.write(d)
+        sleep(delay)
 
-            print("Input 1: " + str(input_1) + "   Input 2: " + str(input_2))
-            if abs(input_1 - input_2) > 100:
-                if input_1 > input_2:
-                    self.motor.step(10)
-                    sleep(.01)
-                if input_2 > input_1:
-                    self.motor.step(-10)
-                    sleep(.01)
+    def move_new(self, num_step, delay):
+        i = 0
+        if num_step > 0:
+            while i < num_step:
+                self.step(1, 0, 0, 0, delay)
+                self.step(1, 1, 0, 0, delay)
+                self.step(0, 1, 0, 0, delay)
+                self.step(0, 1, 1, 0, delay)
+                self.step(0, 0, 1, 0, delay)
+                self.step(0, 0, 1, 1, delay)
+                self.step(0, 0, 0, 1, delay)
+                self.step(1, 0, 0, 1, delay)
+                i += 1
+            self.steps_moved += num_step
 
-            else:
-                sleep(.01)
+        elif num_step < 0:
+            while i < abs(num_step):
+                self.step(1, 0, 0, 1, delay)
+                self.step(0, 0, 0, 1, delay)
+                self.step(0, 0, 1, 1, delay)
+                self.step(0, 0, 1, 0, delay)
+                self.step(0, 1, 1, 0, delay)
+                self.step(0, 1, 0, 0, delay)
+                self.step(1, 1, 0, 0, delay)
+                self.step(1, 0, 0, 0, delay)
+                i += 1
+            self.steps_moved -= num_step
+        else:
+            pass
+
+    def steps_to_angle(self, steps):
+        # steps to angle conversion
+        # El motor 28byj-48 tiene 512 pasos por vuelta.
+        angle = steps * 360 / 512
+        return round(angle)
+
+    def angle_to_steps(self, angle):
+        step = angle * (512) / 360
+        return round(step)

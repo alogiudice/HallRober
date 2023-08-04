@@ -12,6 +12,7 @@ from csv import writer, QUOTE_NONE
 from time import sleep
 from measureThreads import AngleThread, FieldThread
 from initInst import InitializeInstruments
+from angleInit import angleInit
 __version__ = "1.0"
 
 
@@ -258,16 +259,19 @@ class Ui_MainWindow(QMainWindow):
         instrument_menu = QAction("Initialize instruments", fileMenu)
         saveang_menu = QAction("Save V vs Angle measurements", fileMenu)
         savefield_menu = QAction("Save V vs Field measurments", fileMenu)
+        setangle_menu = QAction("Set Angle", fileMenu)
         about_menu = QAction("About HallRober", helpMenu)
         fileMenu.addAction(selectFile_menu)
         fileMenu.addAction(instrument_menu)
         fileMenu.addAction(saveang_menu)
         fileMenu.addAction(savefield_menu)
+        fileMenu.addAction(setangle_menu)
         helpMenu.addAction(about_menu)
         selectFile_menu.triggered.connect(self.save_Filename)
         instrument_menu.triggered.connect(self.initialize_instr_func)
         saveang_menu.triggered.connect(lambda: self.write_file(meas='Angle'))
         savefield_menu.triggered.connect(lambda: self.write_file(meas='Field'))
+        setangle_menu.triggered.connect(self.set_angle)
         about_menu.triggered.connect(self.helpAbout)
     # ENDsetupUi
 
@@ -277,6 +281,15 @@ class Ui_MainWindow(QMainWindow):
         self.insts_init = InitializeInstruments(self)
         self.insts_init.setModal(True)
         self.insts_init.signals.isconfig.connect(self.inst_init_finished)
+        # We can access the insts' address list afterwards with:
+        # (e.g) self.instrument_list
+
+    @pyqtSlot()
+    def set_angle(self):
+        # We get the instruments' addresses with this func.
+        self.angle_init = angleInit(self)
+        self.angle_init.setModal(True)
+        #self.angle_init.signals.isconfig.connect(self.inst_init_finished)
         # We can access the insts' address list afterwards with:
         # (e.g) self.instrument_list
 
@@ -379,7 +392,7 @@ class Ui_MainWindow(QMainWindow):
             ## Thread start
             # Define the list of angles we will sweep through.
             self.angle_sweep = np.arange(self.spinBox.value(),
-                                        self.spinBox_2.value(),
+                                        self.spinBox_2.value()+1,
                                         self.spinBox_3.value()
                                         )
             # Array in which we'll store the measured voltage.
@@ -389,8 +402,10 @@ class Ui_MainWindow(QMainWindow):
             field = self.spinBox_5.value()
             num_meas = self.spinBox_6.value()
             self.worker = AngleThread(var1=self.angle_sweep, var2=field,
-                                      var3=current, var4=num_meas)
+                                      var3=current, var4=num_meas,
+                                      var5=self.insts_init.instrument_list)
             self.worker.signals.result.connect(self.update_plot_angle)
+            self.worker.signals.result2.connect(self.update_legend_a)
             self.worker.signals.finished.connect(self.thread_complete)
             self.worker.signals.progress.connect(self.thread_progress)
             self.pushButton_2s.clicked.connect(self.worker.finish_run)
@@ -407,7 +422,7 @@ class Ui_MainWindow(QMainWindow):
             ## Thread start
             # Define the list of angles we will sweep through.
             self.field_sweep = np.arange(self.spinBox_2b.value(),
-                                        self.spinBox_6b.value(),
+                                        self.spinBox_6b.value()+1,
                                         self.spinBox_10b.value()
                                         )
             # Array in which we'll store the measured voltage.
@@ -419,18 +434,23 @@ class Ui_MainWindow(QMainWindow):
                                       var3=angle, var4=num_meas,
                                       var5 = self.insts_init.instrument_list)
             self.worker.signals.result.connect(self.update_plot_field)
+            self.worker.signals.result2.connect(self.update_legend_b)
             self.worker.signals.finished.connect(self.thread_complete)
             self.worker.signals.progress.connect(self.thread_progress)
             self.pushButton_15s.clicked.connect(self.worker.finish_run)
             self.threadpool.start(self.worker)
 
+    def update_legend_a(self, stri):
+        self.statusLabel_a.setText(stri)
+
+    def update_legend_b(self, stri):
+        self.statusLabel_b.setText(stri)
+
     def update_plot_angle(self, s):
-        self.statusLabel_a.setText("Busy")
         self.plotwid_curve.addPoints([s[0]], [s[1]])
         self.volt_angsweep.append(s[1])
 
     def update_plot_field(self, s):
-        self.statusLabel_b.setText("Busy")
         self.plotwid_2_curve.addPoints([s[0]], [s[1]])
         self.volt_fieldsweep.append(s[1])
 

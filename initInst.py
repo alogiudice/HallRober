@@ -3,6 +3,7 @@ from PyQt5.QtWidgets import QDialog, QVBoxLayout, QGridLayout, QTextBrowser, QLa
     QComboBox, QPushButton, QMessageBox, QStyle, qApp
 from PyQt5.QtGui import QPixmap
 from PyQt5.QtCore import Qt, pyqtSignal, QObject, pyqtSlot
+from time import sleep
 import pyvisa
 import re
 import configparser
@@ -154,7 +155,8 @@ class InitializeInstruments(QDialog):
             self.config['DEFAULT'] = {'currentsample': '',
                                       'currentcoils': '',
                                       'multimeter': '',
-                                      'arduino': ''
+                                      'arduino': '',
+                                      'motor_position': '0',
                                       }
             with open('config.cfg', 'w') as file:
                 self.config.write(file)
@@ -164,40 +166,49 @@ class InitializeInstruments(QDialog):
         # which instrument it actually is.
         # self.info is the list of instruments. We will open each and run regex
         # Patters should have inst manuf occurrence + model number
-        if len(self.info) > 3:
+        if len(self.info) < 3:
             self.less_than_three_inst_warn()
             return 1
         pattern_ccsource = re.compile("MODEL 6220")
         pattern_multimeter = re.compile("MODEL 2010")
-        pattern_hcsource = re.compile("(?=.*Agilent)(?=.*6221)")
+        #pattern_agilent = re.compile("(?=.*Agilent)(?=.*6221)")
         pattern_notInst = re.compile("ttyS0")
-        pattern_agilent = re.compile("SPD3303")
+        pattern_hcsource = re.compile("SPD3303")
+        pattern_arduino = re.compile("ttyACM")
         for ind, item in enumerate(self.info):
-            print('{} and {}'.format(ind, item))
+            #print('{} and {}'.format(ind, item))
             if pattern_notInst.search(item) is not None:
                 print("{} probably not an instrument. Pass.".format(item))
                 pass
-        else:
-            ins = self.rm.open_resource(item)
-            print("Open resource {}".format(item))
-            ins.write('*IDN?')
-            st = str(ins.read_raw())
-            print("IDN output for instrument: {}".format(st))
-            # Dunno why, but first comboBox item is blank
-            if pattern_hcsource.search(st, re.IGNORECASE) is not None:
-                print("Current source for HCoils is {}".format(item))
-
-                self.choice3.setCurrentIndex(ind+1)
-            elif pattern_multimeter.search(st, re.IGNORECASE) is not None:
-                print("Multimeter is {}".format(item))
-                self.choice1.setCurrentIndex(ind+1)
-            elif pattern_ccsource.search(st, re.IGNORECASE) is not None:
-                print("Current source for sample is {}".format(item))
-                self.choice2.setCurrentIndex(ind+1)
             else:
-                print("ERROR: Couldn't match the instrument's identity ({}) with any recognized "
-                      "instruments.".format(st))
-        # TODO: Find a way to autoguess the arduino address.
+                # Arduino always is in /dev/ttyACMx, so we will look for that in the list_resources list.
+                if pattern_arduino.search(item, re.IGNORECASE) is not None:
+                    print("Arduino found: {}".format(item))
+                    self.choice4.setCurrentIndex(ind+1)
+                else:
+                    # if it's not an arduino, we open the instrument and ask for its idn.
+                    ins = self.rm.open_resource(item)
+                    print("Open resource {}".format(item))
+                    ins.write('*IDN?')
+                    sleep(1)
+                    st = str(ins.read_raw())
+                    print("IDN output for instrument: {}".format(st))
+                    # Dunno why, but first comboBox item is blank
+                    if pattern_hcsource.search(st, re.IGNORECASE) is not None:
+                        print("Current source for HCoils is {}".format(item))
+                        self.choice3.setCurrentIndex(ind+1)
+                    elif pattern_multimeter.search(st, re.IGNORECASE) is not None:
+                        print("Multimeter is {}".format(item))
+                        self.choice1.setCurrentIndex(ind+1)
+                    elif pattern_ccsource.search(st, re.IGNORECASE) is not None:
+                        print("Current source for sample is {}".format(item))
+                        self.choice2.setCurrentIndex(ind+1)
+                    else:
+                        print("ERROR: Couldn't match the instrument's identity ({}) with any recognized "
+                              "instruments.".format(st))
+
+
+
 
     def getInstruments(self):
         # First, we check that we actually have four instruments selected.
@@ -220,6 +231,9 @@ class InitializeInstruments(QDialog):
             # We don't do it before to avoid passing wrong addresses
             # of instruments to MainWindow.
             # Write this LIST with the names of each instrument to use afterwards on the thread.
+            # Cambiamos aca la dir del arduino para poder abrirlo luego.
+            inst4 = inst4.removeprefix('ASRL')
+            inst4 = inst4.removesuffix('::INSTR')
             self.instrument_list = [inst1, inst2, inst3, inst4]
             # Write new config file parameters
             self.config['DEFAULT']['multimeter'] = inst1
