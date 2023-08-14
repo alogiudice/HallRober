@@ -1,7 +1,6 @@
 # class ArduinoM, for controlling the motor using an arduino.
 
 import pyfirmata2 as f
-import StepperLib as ar
 from time import sleep
 
 class ArduinoM:
