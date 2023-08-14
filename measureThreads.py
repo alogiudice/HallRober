@@ -14,13 +14,12 @@ class WorkerSignals(QObject):
     result2 = pyqtSignal(object)
 
 class AngleThread(QRunnable):
-    #This thread will create a random number every 2 seconds and emit that value.
-    # It is just to test threads :)
     def __init__(self, var1, var2, var3, var4, var5):
         super(AngleThread, self).__init__()
         self.signals = WorkerSignals()
         print("Worker thread started (Angle measurement)")
-        self.angle = var1
+        # Angle list = [ang_inic, ang_fin, ang_steps]
+        self.angle_list = var1
         self.field = var2
         self.current = var3
         self.number_meas = var4
@@ -32,7 +31,7 @@ class AngleThread(QRunnable):
         print('DEBUG: ARDUINO DIR: {}'.format(self.arduino_dir))
         # We reformat the last string from instrument_list since the arduino needs the ttyACM dir to initialize.
         self.running = True
-        print("From ANGLEWORKER: Angle values to be swept: {}".format(self.angle))
+        print("From ANGLEWORKER: Angle values to be swept: {}".format(self.angle_list))
         print("From ANGLEWORKER: Applied field: {} G".format(self.field))
         print("From ANGLEWORKER: Applied current: {} um".format(self.current))
         print("From ANGLEWORKER: Number of measurements: {}".format(self.number_meas))
@@ -48,30 +47,40 @@ class AngleThread(QRunnable):
         self.agilent = inst.Fuente_Siglent(self.rm, self.instrument_list[2])
         # Usamos los pines 9, 10, 11, 12 del arduino.
         self.armot = motor.ArduinoM(self.arduino_dir, 9, 10, 11, 12)
+        # Pasamos a steps los valores angulares
+        steps_final = self.armot.angle_to_steps(self.angle_list[1])
+        steps_inic = self.armot.angle_to_steps(self.angle_list[0])
+        # El saltito entre el cual vamos a medir.
+        num_steps = self.armot.angle_to_steps(self.angle_list[2])
         self.kcurrent.set_current(self.current)
-        self.agilent.set_voltage(1, inst.field_to_voltage((self.field)))
+        self.kcurrent.current_on()
+        self.agilent.set_voltage(1, inst.field_to_voltage(self.field))
         self.agilent.channel_1_on()
-        for angle in self.angle:
+        sleep(1)
+        # Vamos al valor inicial del ang (es decir, move to init_step)
+        self.armot.move_new(steps_inic, 0.05)
+        while abs(self.armot.steps_moved) < abs(steps_final):
             if self.running:
-                print(self.armot.angle_to_steps(angle))
-                self.armot.move_new(self.armot.angle_to_steps(angle), 0.05)
+                self.armot.move_new(num_steps, 0.05)
+                current_angle = self.armot.steps_to_angle(self.armot.steps_moved)
                 mean, std = inst.mean_voltage(self.number_meas, self.multimeter)
-                self.signals.result.emit([angle, mean, std])
-                self.signals.result2.emit('Measuring at angle: {} (step {})'.format(angle, self.armot.angle_to_steps(angle)))
+                self.signals.result.emit([current_angle, mean, std])
+                self.signals.result2.emit('Current step: {} ({} deg)\n'.format(self.armot.steps_moved,
+                                                                               current_angle))
             else:
                 self.agilent.channel_1_off()
                 self.kcurrent.current_off()
                 self.rm.close()
                 # Return to starting position
                 self.signals.result2.emit('Moving motor back to start position.')
-                self.armot.move_new(self.armot.steps_moved * (-1), 0.03)
+                self.armot.move_new(self.armot.steps_moved * (-1), 0.005)
                 self.signals.finished.emit()
                 return
         # Al terminar, cerramos rm y emitimos señal.
         self.kcurrent.current_off()
         self.agilent.channel_1_off()
         self.signals.result2.emit('Moving motor back to start position.')
-        self.armot.move_new(self.armot.steps_moved * (-1), 0.03)
+        self.armot.move_new(self.armot.steps_moved * (-1), 0.005)
         self.rm.close()
         self.signals.finished.emit()
         self.running = False

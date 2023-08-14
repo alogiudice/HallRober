@@ -86,21 +86,9 @@ class Ui_Dialog(object):
 
         self.horizontalLayout.addWidget(self.pushButton)
 
-
-        self.retranslateUi(Dialog)
-        self.closeBox.accepted.connect(Dialog.accept)
-        self.closeBox.rejected.connect(Dialog.reject)
-
         QMetaObject.connectSlotsByName(Dialog)
     # setupUi
 
-    def retranslateUi(self, Dialog):
-        Dialog.setWindowTitle(QCoreApplication.translate("Dialog", u"Dialog", None))
-        self.label_1.setText(QCoreApplication.translate("Dialog", u"Current Angle", None))
-        self.label.setText(QCoreApplication.translate("Dialog", u"Current no of steps", None))
-        self.pushButton_ccwise.setText(QCoreApplication.translate("Dialog", u"Move counter clockwise", None))
-        self.pushButton_cwise.setText(QCoreApplication.translate("Dialog", u"Move clockwise", None))
-        self.label_2.setText(QCoreApplication.translate("Dialog", u"Angle step:", None))
-        self.pushButton.setText(QCoreApplication.translate("Dialog", u"Go", None))
+
     # retranslateUi
 

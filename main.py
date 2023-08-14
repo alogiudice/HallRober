@@ -96,7 +96,7 @@ class Ui_MainWindow(QMainWindow):
         self.label_5.setText(u"End angle")
         self.AngleSweep_glayout.addWidget(self.label_5, 1, 0, 1, 1)
         self.spinBox_2 = QSpinBox(self.AngleSweep)
-        self.spinBox_2.setRange(0, 90)
+        self.spinBox_2.setRange(0, 360)
         self.AngleSweep_glayout.addWidget(self.spinBox_2, 1, 1, 1, 1)
         self.label_9 = QLabel(self.AngleSweep)
         self.label_9.setText(u"Number of measurements:")
@@ -287,17 +287,43 @@ class Ui_MainWindow(QMainWindow):
     @pyqtSlot()
     def set_angle(self):
         # We get the instruments' addresses with this func.
-        self.angle_init = angleInit(self)
-        self.angle_init.setModal(True)
-        #self.angle_init.signals.isconfig.connect(self.inst_init_finished)
-        # We can access the insts' address list afterwards with:
-        # (e.g) self.instrument_list
-
-    def test(self, y):
-        print(y)
+        try:
+            self.insts_init.instrument_list
+        except NameError:
+            print("Instruments have not been initialized yet.")
+            message = QMessageBox()
+            ico = os.path.join(os.path.dirname(__file__), "icons/laika.png")
+            pixmap = QPixmap(ico).scaledToHeight(128,
+                                                 Qt.SmoothTransformation)
+            message.setIconPixmap(pixmap)
+            message.setWindowTitle("Error")
+            message.setText("Arduino has not been properly initialized.\n"
+                            "Please do so by running the \"Initialize Instruments\" \n"
+                            "command first.")
+            message.setStandardButtons(QMessageBox.Ok)
+            message.buttonClicked.connect(message.close)
+            message.exec_()
+        else:
+            if not self.insts_init.instrument_list:
+                print("Arduino not been properly initialized yet.")
+                message = QMessageBox()
+                ico = os.path.join(os.path.dirname(__file__), "icons/laika.png")
+                pixmap = QPixmap(ico).scaledToHeight(128,
+                                                     Qt.SmoothTransformation)
+                message.setIconPixmap(pixmap)
+                message.setWindowTitle("Error")
+                message.setText("Arduino has not been properly initialized.\n"
+                                "Please do so by running the \"Initialize Instruments\" \n"
+                                "command first.")
+                message.setStandardButtons(QMessageBox.Ok)
+                message.buttonClicked.connect(message.close)
+                message.exec_()
+            else:
+                self.angle_init = angleInit(self, self.insts_init.instrument_list)
+                self.angle_init.setModal(True)
 
     def helpAbout(self):
-        msg = QMessageBox.about(self, "About NanoRober",
+        msg = QMessageBox.about(self, "About HallRober",
                                     """<b>HallRober - Measuring the Planar Hall Effect.</b> 
                                     <p>Version %s (2023) by Agostina Lo Giudice.
                                     (logiudic@tandar.cnea.gov.ar)
@@ -309,7 +335,7 @@ class Ui_MainWindow(QMainWindow):
         # Open FileDialog to get save file name.
         filename, _ = QFileDialog.getSaveFileName(self, "Select a File",
                                                   r"/home/agostina/",
-                                                  r"CSV files (*.csv)"                                        )
+                                                  r"CSV files (*.csv)")
         if filename:
             path = Path(filename)
             self.lineEdit_fname.setText(str(path))
@@ -391,17 +417,18 @@ class Ui_MainWindow(QMainWindow):
             sleep(2)
             ## Thread start
             # Define the list of angles we will sweep through.
-            self.angle_sweep = np.arange(self.spinBox.value(),
-                                        self.spinBox_2.value()+1,
-                                        self.spinBox_3.value()
-                                        )
+            # Pasamos los valores de ang inicial, final y step al thread
+            self.angle_array = [self.spinBox.value(), self.spinBox_2.value(), self.spinBox_3.value()]
+            # self.angle_sweep = CAMBIAR!! Se requiere otro formato.
+            # total_steps = steps_end - steps_init
+            # paso fijo de angle_step
             # Array in which we'll store the measured voltage.
             # We only init it when we press "start".
             self.volt_angsweep = []
-            current = self.spinBox_4.value()
+            current = self.spinBox_4.value() * 10 ** (-6)
             field = self.spinBox_5.value()
             num_meas = self.spinBox_6.value()
-            self.worker = AngleThread(var1=self.angle_sweep, var2=field,
+            self.worker = AngleThread(var1=self.angle_array, var2=field,
                                       var3=current, var4=num_meas,
                                       var5=self.insts_init.instrument_list)
             self.worker.signals.result.connect(self.update_plot_angle)
@@ -427,7 +454,7 @@ class Ui_MainWindow(QMainWindow):
                                         )
             # Array in which we'll store the measured voltage.
             self.volt_fieldsweep = []
-            current = self.spinBox_12b.value()
+            current = self.spinBox_12b.value() * 10 ** (-6)
             angle = self.spinBox_4b.value()
             num_meas = self.spinBox_8b.value()
             self.worker = FieldThread(var1=self.field_sweep, var2=current,

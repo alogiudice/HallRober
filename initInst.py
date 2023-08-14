@@ -240,7 +240,7 @@ class InitializeInstruments(QDialog):
             self.config['DEFAULT']['currentsample'] = inst2
             self.config['DEFAULT']['currentcoils'] = inst3
             self.config['DEFAULT']['arduino'] = inst4
-            with open('config.ini', 'w') as file:
+            with open('config.cfg', 'w') as file:
                 self.config.write(file)
             # Close pyvisa resource manager.
             self.rm.close()

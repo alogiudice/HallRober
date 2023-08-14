@@ -14,50 +14,52 @@ class ArduinoM:
         self.pin_3 = self.board.get_pin('d:%s:o' % (pin_3))
         self.pin_4 = self.board.get_pin('d:%s:o' % (pin_4))
         self.steps_moved = 0
+        self.move_vectors = [[1, 0, 0, 0],
+                             [1, 1, 0, 0],
+                             [0, 1, 0, 0],
+                             [0, 1, 1, 0],
+                             [0, 0, 1, 0],
+                             [0, 0, 1, 1],
+                             [0, 0, 0, 1],
+                             [1, 0, 0, 1]
+                             ]
+        self.move_v_reverse = list(reversed(self.move_vectors))
 
-    def step(self, a, b, c, d, delay):
-        self.pin_1.write(a)
-        self.pin_2.write(b)
-        self.pin_3.write(c)
-        self.pin_4.write(d)
+    def step(self, vector, delay):
+        self.pin_1.write(vector[0])
+        self.pin_2.write(vector[1])
+        self.pin_3.write(vector[2])
+        self.pin_4.write(vector[3])
         sleep(delay)
 
     def move_new(self, num_step, delay):
-        i = 0
+        # Se tiene en cuenta que se pudo ahber quedado en un vector intermedio. Por eso,
+        # se toma el num de steps recorrido y se ve el resto de dividir por 8 a ver desde donde
+        # se arranca a contar.
+        i = abs(self.steps_moved % 8)
+        j = 0
         if num_step > 0:
-            while i < num_step:
-                self.step(1, 0, 0, 0, delay)
-                self.step(1, 1, 0, 0, delay)
-                self.step(0, 1, 0, 0, delay)
-                self.step(0, 1, 1, 0, delay)
-                self.step(0, 0, 1, 0, delay)
-                self.step(0, 0, 1, 1, delay)
-                self.step(0, 0, 0, 1, delay)
-                self.step(1, 0, 0, 1, delay)
+            while j < num_step:
+                self.step(self.move_vectors[i % 8], delay)
                 i += 1
-            self.steps_moved += num_step
-
+                j += 1
+                self.steps_moved += 1
+                print("vector[{}]; total steps: {}".format(i % 8, self.steps_moved))
         elif num_step < 0:
-            while i < abs(num_step):
-                self.step(1, 0, 0, 1, delay)
-                self.step(0, 0, 0, 1, delay)
-                self.step(0, 0, 1, 1, delay)
-                self.step(0, 0, 1, 0, delay)
-                self.step(0, 1, 1, 0, delay)
-                self.step(0, 1, 0, 0, delay)
-                self.step(1, 1, 0, 0, delay)
-                self.step(1, 0, 0, 0, delay)
+            while j < abs(num_step):
+                self.step(self.move_v_reverse[i % 8], delay)
                 i += 1
-            self.steps_moved -= num_step
-        else:
-            pass
+                j += 1
+                self.steps_moved -= 1
+                print("vector[{}]; total steps: {}".format(i % 8, self.steps_moved))
+
 
     def steps_to_angle(self, steps):
         # steps to angle conversion
-        # El motor 28byj-48 tiene 512 pasos por vuelta.
-        angle = steps * 360 / 512
+        # El motor 28byj-48 tiene 4096 pasos por vuelta.
+        angle = steps * 360 / 4095
         return round(angle)
 
     def angle_to_steps(self, angle):
-        step = angle * (512) / 360
+        step = angle * (4095) / 360
         return round(step)
