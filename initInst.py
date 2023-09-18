@@ -232,6 +232,8 @@ class InitializeInstruments(QDialog):
             # of instruments to MainWindow.
             # Write this LIST with the names of each instrument to use afterwards on the thread.
             # Cambiamos aca la dir del arduino para poder abrirlo luego.
+            # La guardamos sin modificar en el config file.
+            self.config['DEFAULT']['arduino'] = inst4
             inst4 = inst4.removeprefix('ASRL')
             inst4 = inst4.removesuffix('::INSTR')
             self.instrument_list = [inst1, inst2, inst3, inst4]
@@ -239,7 +241,7 @@ class InitializeInstruments(QDialog):
             self.config['DEFAULT']['multimeter'] = inst1
             self.config['DEFAULT']['currentsample'] = inst2
             self.config['DEFAULT']['currentcoils'] = inst3
-            self.config['DEFAULT']['arduino'] = inst4
+
             with open('config.cfg', 'w') as file:
                 self.config.write(file)
             # Close pyvisa resource manager.

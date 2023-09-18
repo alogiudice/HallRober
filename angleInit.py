@@ -11,7 +11,9 @@ import os
 class angleInit(QDialog):
     def __init__(self, parent, instrument_list):
         super(angleInit, self).__init__(parent=parent)
-        self.arduino = arMotor.ArduinoM(instrument_list[3], 9, 10, 11, 12)
+        self.motor_pins = [12, 11, 10, 9]
+        self.relay_pins = [2, 3, 4, 5]
+        self.arduino = arMotor.ArduinoM(instrument_list[3], self.motor_pins, self.relay_pins)
         self.config = configparser.ConfigParser()
         self.dialog_angle = QDialog()
         self.dialog_angle.resize(507, 410)

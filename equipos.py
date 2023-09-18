@@ -66,6 +66,8 @@ class Fuente_Siglent:
         self.instf.query('INSTrument?')
         
     def set_voltage(self, channel, num):
+        if num < 0:
+            num = abs(num)
         string = 'CH{}:VOLTage {}'.format(channel, num)
         self.instf.write(string)
         
@@ -167,7 +169,7 @@ def mean_voltage(sample_num, multi):
 
 def field_to_voltage(field):
     # Using last calibration.
-    # volt = truncate(((field + 0.0497) / 3.286), decimals=3)
+    volt = truncate(((field + 0.0497) / 3.286), decimals=3)
     volt = ((field + 0.0497) / 3.286)
     return volt
 

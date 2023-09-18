@@ -89,7 +89,7 @@ class Ui_MainWindow(QMainWindow):
         self.label_7.setText(u"Current (in uA)")
         self.AngleSweep_glayout.addWidget(self.label_7, 0, 2, 1, 1)
         self.spinBox_4 = QSpinBox(self.AngleSweep)
-        self.spinBox_4.setRange(5, 90)
+        self.spinBox_4.setRange(0, 5000)
         self.spinBox_4.setSingleStep(5)
         self.AngleSweep_glayout.addWidget(self.spinBox_4, 0, 3, 1, 1)
         self.label_5 = QLabel(self.AngleSweep)
@@ -102,8 +102,8 @@ class Ui_MainWindow(QMainWindow):
         self.label_9.setText(u"Number of measurements:")
         self.AngleSweep_glayout.addWidget(self.label_9, 1, 2, 1, 1)
         self.spinBox_6 = QSpinBox(self.AngleSweep)
-        self.spinBox_6.setRange(10, 50)
-        self.spinBox_6.setSingleStep(10)
+        self.spinBox_6.setRange(1, 50)
+        self.spinBox_6.setSingleStep(1)
         self.AngleSweep_glayout.addWidget(self.spinBox_6, 1, 3, 1, 1)
         self.label_6 = QLabel(self.AngleSweep)
         self.label_6.setText(u"Angle step")
@@ -147,6 +147,7 @@ class Ui_MainWindow(QMainWindow):
         self.plotwid.setBackground('w')
         self.plotwid_curve = pg.ScatterPlotItem(size=5,
                                                 brush=pg.mkBrush(30, 255, 0, 255))
+
         self.plotwid.addItem(self.plotwid_curve)
         self.plotwid.setLabel('left', 'Voltage [V]')
         self.plotwid.setLabel('bottom', 'Angle (Deg)')
@@ -194,8 +195,8 @@ class Ui_MainWindow(QMainWindow):
         self.label_7b.setText("Number of measurements")
         self.FieldSweep_glayout.addWidget(self.label_7b, 1, 2, 1, 1)
         self.spinBox_8b = QSpinBox(self.FieldSweep)
-        self.spinBox_8b.setRange(10, 50)
-        self.spinBox_8b.setSingleStep(10)
+        self.spinBox_8b.setRange(1, 50)
+        self.spinBox_8b.setSingleStep(1)
         self.FieldSweep_glayout.addWidget(self.spinBox_8b, 1, 3, 1, 1)
         self.label_9b = QLabel(self.FieldSweep)
         self.label_9b.setText("Field Step (G)")
@@ -209,6 +210,7 @@ class Ui_MainWindow(QMainWindow):
         self.FieldSweep_glayout.addWidget(self.label_11b, 2, 2, 1, 1)
         self.spinBox_12b = QSpinBox(self.FieldSweep)
         self.spinBox_12b.setSingleStep(5)
+        self.spinBox_12b.setRange(0, 5000)
         self.FieldSweep_glayout.addWidget(self.spinBox_12b, 2, 3, 1, 1)
         self.label_13b = QLabel(self.FieldSweep)
         self.label_13b.setText(u"Estimated time:")
@@ -394,7 +396,7 @@ class Ui_MainWindow(QMainWindow):
                 for row in contents:
                     wr.writerow(row)
                 wr.writerow(['Field (deg),Hall Voltage (V)'])
-                data = zip(self.field_sweep, self.volt_fieldsweep)
+                data = zip(self.total_field, self.volt_fieldsweep)
                 wr.writerows(data)
                 print('Data written to {}'.format(self.lineEdit_fname.text()))
                 file.close()
@@ -406,11 +408,13 @@ class Ui_MainWindow(QMainWindow):
     def start_meas(self, meas_type):
         # For updating the counter needed to save voltage values to array.
         # For Ang sweep measurement
+
         if meas_type == "Angle":
             #Disable "START" button for Field and Angle measurements.
             # 15b = start button for Field meas
             # 2 = start button for Angle meas
             # 2s = stop button for Angle meas
+            self.plotwid_curve.clear()
             self.pushButton_15b.setDisabled(True)
             self.pushButton_2.setDisabled(True)
             self.pushButton_2s.setEnabled(True)
@@ -419,11 +423,7 @@ class Ui_MainWindow(QMainWindow):
             # Define the list of angles we will sweep through.
             # Pasamos los valores de ang inicial, final y step al thread
             self.angle_array = [self.spinBox.value(), self.spinBox_2.value(), self.spinBox_3.value()]
-            # self.angle_sweep = CAMBIAR!! Se requiere otro formato.
-            # total_steps = steps_end - steps_init
-            # paso fijo de angle_step
-            # Array in which we'll store the measured voltage.
-            # We only init it when we press "start".
+            self.angle_sweep = []
             self.volt_angsweep = []
             current = self.spinBox_4.value() * 10 ** (-6)
             field = self.spinBox_5.value()
@@ -438,6 +438,7 @@ class Ui_MainWindow(QMainWindow):
             self.pushButton_2s.clicked.connect(self.worker.finish_run)
             self.threadpool.start(self.worker)
         elif meas_type == "Field":
+            self.plotwid_2_curve.clear()
             # Disable "START" button for Field and Angle measurements.
             # 15b = start button for Field meas
             # 2 = start button for Angle meas
@@ -452,6 +453,7 @@ class Ui_MainWindow(QMainWindow):
                                         self.spinBox_6b.value()+1,
                                         self.spinBox_10b.value()
                                         )
+            self.total_field = np.concatenate((self.field_sweep, np.flip(self.field_sweep)))
             # Array in which we'll store the measured voltage.
             self.volt_fieldsweep = []
             current = self.spinBox_12b.value() * 10 ** (-6)
@@ -475,6 +477,7 @@ class Ui_MainWindow(QMainWindow):
 
     def update_plot_angle(self, s):
         self.plotwid_curve.addPoints([s[0]], [s[1]])
+        self.angle_sweep.append(s[0])
         self.volt_angsweep.append(s[1])
 
     def update_plot_field(self, s):

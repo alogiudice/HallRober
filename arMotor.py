@@ -4,14 +4,14 @@ import pyfirmata2 as f
 from time import sleep
 
 class ArduinoM:
-    def __init__(self, stri, pin_1, pin_2, pin_3, pin_4):
+    def __init__(self, stri, motor_pins, relay_pins):
         self.board = f.Arduino(stri)
         self.reader = f.util.Iterator(self.board)
         self.reader.start()
-        self.pin_1 = self.board.get_pin('d:%s:o' % (pin_1))
-        self.pin_2 = self.board.get_pin('d:%s:o' % (pin_2))
-        self.pin_3 = self.board.get_pin('d:%s:o' % (pin_3))
-        self.pin_4 = self.board.get_pin('d:%s:o' % (pin_4))
+        self.pin_1 = self.board.get_pin('d:%s:o' % (motor_pins[0]))
+        self.pin_2 = self.board.get_pin('d:%s:o' % (motor_pins[1]))
+        self.pin_3 = self.board.get_pin('d:%s:o' % (motor_pins[2]))
+        self.pin_4 = self.board.get_pin('d:%s:o' % (motor_pins[3]))
         self.steps_moved = 0
         self.move_vectors = [[1, 0, 0, 0],
                              [1, 1, 0, 0],
@@ -23,6 +23,11 @@ class ArduinoM:
                              [1, 0, 0, 1]
                              ]
         self.move_v_reverse = list(reversed(self.move_vectors))
+        # Relay control
+        self.relay1 = self.board.get_pin('d:%s:o' % (relay_pins[0]))
+        self.relay2 = self.board.get_pin('d:%s:o' % (relay_pins[1]))
+        self.relay3 = self.board.get_pin('d:%s:o' % (relay_pins[2]))
+        self.relay4 = self.board.get_pin('d:%s:o' % (relay_pins[3]))
 
     def step(self, vector, delay):
         self.pin_1.write(vector[0])
@@ -62,3 +67,20 @@ class ArduinoM:
     def angle_to_steps(self, angle):
         step = angle * (4095) / 360
         return round(step)
+
+    def change_relay_config(self, config):
+        # 1 is forward and -1 is reverse.
+        if config == 1:
+            self.relay1.write(True)
+            self.relay2.write(False)
+            self.relay3.write(False)
+            self.relay4.write(True)
+            print('Relays 1 and 4 on (forward config)')
+        elif config == -1:
+            self.relay1.write(False)
+            self.relay2.write(True)
+            self.relay3.write(True)
+            self.relay4.write(False)
+            print('Relays 2 and 3 on (inverse config)')
+        else:
+            print('No change in relay configuration')
