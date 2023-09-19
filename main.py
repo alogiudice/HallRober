@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-
+ # -*- coding: utf-8 -*-
 from PyQt5.QtCore import *
 from PyQt5.QtGui import *
 from PyQt5.QtWidgets import *
@@ -16,11 +16,15 @@ from angleInit import angleInit
 __version__ = "1.0"
 
 
+class Signals(QObject):
+    dialog_closed = pyqtSignal(object)
+
 class Ui_MainWindow(QMainWindow):
     def __init__(self, parent=None):
         super().__init__()
         self.threadpool = QThreadPool()
         self.setupUi()
+        self.signal = Signals()
 
     def setupUi(self):
         if not self.objectName():
@@ -43,7 +47,7 @@ class Ui_MainWindow(QMainWindow):
         self.lineEdit_fname = QLineEdit(self.centralwidget)
         self.lineEdit_fname.setGeometry(QRect(80, 0, 381, 27))
         # Combobox measures
-        self.comboBox_measure.addItems(["Angle Sweep", "Custom Angle V vs H"])
+        self.comboBox_measure.addItems(["Angle Sweep", "Custom Angle V vs H", "Sensitivity"])
         self.comboBox_measure.setGeometry(QRect(170, 80, 151, 28))
         self.comboBox_measure.activated.connect(self.change_layout)
 
@@ -149,7 +153,7 @@ class Ui_MainWindow(QMainWindow):
                                                 brush=pg.mkBrush(30, 255, 0, 255))
 
         self.plotwid.addItem(self.plotwid_curve)
-        self.plotwid.setLabel('left', 'Voltage [V]')
+        self.plotwid.setLabel('left', 'Hall Voltage [V]')
         self.plotwid.setLabel('bottom', 'Angle (Deg)')
         self.AngleSweep_plotLayout.addWidget(self.plotwid)
 
@@ -238,7 +242,7 @@ class Ui_MainWindow(QMainWindow):
                                                   brush=pg.mkBrush(30, 0, 200, 200))
         self.plotwid_2.addItem(self.plotwid_2_curve)
         self.plotwid_2.setBackground('w')
-        self.plotwid_2.setLabel('left', 'Voltage [V]')
+        self.plotwid_2.setLabel('left', 'Hall Voltage [V]')
         self.plotwid_2.setLabel('bottom', 'Field (G)')
         self.FieldSweep_plotLayout.addWidget(self.plotwid_2)
         self.statusLabel_b = QLabel(self.FieldSweep)
@@ -247,9 +251,112 @@ class Ui_MainWindow(QMainWindow):
         self.FieldSweep_layout.addLayout(self.FieldSweep_plotLayout)
         self.FieldSweep.setLayout(self.FieldSweep_layout)
         self.stackedLayout.addWidget(self.FieldSweep)
+
+
+        ###################################
+        # Sensitivity layout
+        self.SensSweep = QWidget(self.centralwidget)
+        self.SensSweep.setGeometry(QRect(10, 120, 551, 421))
+        self.SensSweep_layout = QVBoxLayout(self.SensSweep)
+        self.SensSweep_layout.setSizeConstraint(QLayout.SetNoConstraint)
+        self.SensSweep_glayout = QGridLayout(self.SensSweep)
+        # Widgets for grid layout
+        self.label_s1 = QLabel(self.SensSweep)
+        self.label_s1.setText("Saturation Field (G)")
+        self.SensSweep_glayout.addWidget(self.label_s1, 0, 0, 1, 1)
+        self.spinBox_s2 = QSpinBox(self.SensSweep)
+        self.spinBox_s2.setSingleStep(5)
+        self.spinBox_s2.setRange(-300, 0)
+        self.spinBox_s2.setValue(-300)
+        self.SensSweep_glayout.addWidget(self.spinBox_s2, 0, 1, 1, 1)
+        self.label_s3 = QLabel(self.SensSweep)
+        self.label_s3.setText("Start Field (G)")
+        self.SensSweep_glayout.addWidget(self.label_s3, 1, 0, 1, 1)
+        self.spinBox_s4 = QDoubleSpinBox(self.SensSweep)
+        self.spinBox_s4.setRange(-2, 0)
+        self.spinBox_s4.setValue(-1)
+        self.spinBox_s4.setSingleStep(0.1)
+        self.SensSweep_glayout.addWidget(self.spinBox_s4, 1, 1, 1, 1)
+        self.label_s5 = QLabel(self.SensSweep)
+        self.label_s5.setText("End Field (G)")
+        self.SensSweep_glayout.addWidget(self.label_s5, 2, 0, 1, 1)
+        self.spinBox_s6 = QDoubleSpinBox(self.SensSweep)
+        self.spinBox_s6.setRange(0, 2)
+        self.spinBox_s6.setValue(1)
+        self.spinBox_s6.setSingleStep(0.1)
+        self.SensSweep_glayout.addWidget(self.spinBox_s6, 2, 1, 1, 1)
+        self.label_s7 = QLabel(self.SensSweep)
+        self.label_s7.setText(u"Angle:")
+        self.SensSweep_glayout.addWidget(self.label_s7, 3, 0, 1, 1)
+
+        self.spinBox_s8 = QSpinBox(self.SensSweep)
+        self.spinBox_s8.setRange(0, 360)
+        self.spinBox_s8.setValue(0)
+        self.SensSweep_glayout.addWidget(self.spinBox_s8, 3, 1, 1, 1)
+
+        self.label_s9 = QLabel(self.SensSweep)
+        self.label_s9.setText("Field Step (G)")
+        self.SensSweep_glayout.addWidget(self.label_s9, 0, 2, 1, 1)
+        self.spinBox_s10 = QDoubleSpinBox(self.SensSweep)
+        self.spinBox_s10.setRange(0.1, 1)
+        self.spinBox_s10.setSingleStep(0.1)
+        self.spinBox_s10.setValue(0.1)
+        self.SensSweep_glayout.addWidget(self.spinBox_s10, 0, 3, 1, 1)
+
+        self.label_s11 = QLabel(self.SensSweep)
+        self.label_s11.setText("Current (uA)")
+        self.SensSweep_glayout.addWidget(self.label_s11, 1, 2, 1, 1)
+        self.spinBox_s12 = QSpinBox(self.SensSweep)
+        self.spinBox_s12.setSingleStep(5)
+        self.spinBox_s12.setRange(0, 5000)
+        self.SensSweep_glayout.addWidget(self.spinBox_s12, 1, 3, 1, 1)
+
+        self.label_s13 = QLabel(self.SensSweep)
+        self.label_s13.setText("Number of Measurements")
+        self.SensSweep_glayout.addWidget(self.label_s13, 2, 2, 1, 1)
+
+        self.spinBox_s14 = QSpinBox(self.SensSweep)
+        self.spinBox_s14.setRange(1, 30)
+        self.spinBox_s14.setSingleStep(1)
+        self.SensSweep_glayout.addWidget(self.spinBox_s14, 2, 3, 1, 1)
+
+        self.pushButton_s15 = QPushButton(self.SensSweep)
+        self.pushButton_s15.setText("Start")
+        self.pushButton_s15.setToolTip("You need to initialize the instruments first.")
+        self.pushButton_s15.setDisabled(True)
+        # STOP button
+        self.pushButton_s16 = QPushButton(self.AngleSweep)
+        self.pushButton_s16.setCheckable(True)
+        self.pushButton_s16.setDisabled(True)
+        self.pushButton_s16.setText("Stop")
+        self.pushButton_s15.pressed.connect(lambda: self.start_meas("Sensitivity"))
+
+        self.SensSweep_glayout.addWidget(self.pushButton_s15, 3, 2, 1, 1)
+        self.SensSweep_glayout.addWidget(self.pushButton_s16, 3, 3, 1, 1)
+        self.SensSweep_layout.addLayout(self.SensSweep_glayout)
+        # Plot for the Field sweep
+        self.SensSweep_plotLayout = QVBoxLayout(self.SensSweep)
+        self.plotwid_s = pg.PlotWidget(self.SensSweep)
+        self.plotwid_s_curve = pg.ScatterPlotItem(size=5,
+                                                  brush=pg.mkBrush(30, 0, 200, 200))
+        self.plotwid_s.addItem(self.plotwid_2_curve)
+        self.plotwid_s.setBackground('w')
+        self.plotwid_s.setLabel('left', 'Hall Voltage [V]')
+        self.plotwid_s.setLabel('bottom', 'Field (G)')
+        self.SensSweep_plotLayout.addWidget(self.plotwid_s)
+        self.statusLabel_s19 = QLabel(self.SensSweep)
+        self.statusLabel_s19.setText("Ready")
+        self.SensSweep_plotLayout.addWidget(self.statusLabel_s19)
+        self.SensSweep_layout.addLayout(self.SensSweep_plotLayout)
+        self.SensSweep.setLayout(self.SensSweep_layout)
+        self.stackedLayout.addWidget(self.SensSweep)
+        #########################################################
+
         #########################################################
         self.mainLayout.addLayout(self.stackedLayout)
         self.centralwidget.setLayout(self.mainLayout)
+
+
 
         # Menu bar
         menubar = self.menuBar()
@@ -417,6 +524,7 @@ class Ui_MainWindow(QMainWindow):
             self.plotwid_curve.clear()
             self.pushButton_15b.setDisabled(True)
             self.pushButton_2.setDisabled(True)
+            self.pushButton_s15.setDisabled(True)
             self.pushButton_2s.setEnabled(True)
             sleep(2)
             ## Thread start
@@ -445,7 +553,9 @@ class Ui_MainWindow(QMainWindow):
             # 15s = stop button for Field meas
             self.pushButton_15b.setDisabled(True)
             self.pushButton_2.setDisabled(True)
+            self.pushButton_s15.setDisabled(True)
             self.pushButton_15s.setEnabled(True)
+
             sleep(2)
             ## Thread start
             # Define the list of angles we will sweep through.
@@ -469,11 +579,69 @@ class Ui_MainWindow(QMainWindow):
             self.pushButton_15s.clicked.connect(self.worker.finish_run)
             self.threadpool.start(self.worker)
 
+        elif meas_type == 'Sensitivity':
+            self.plotwid_s_curve.clear()
+            # Disable "START" button for Field and Angle measurements.
+            # 15b = start button for Field meas
+            # 2 = start button for Angle meas
+            # 15s = stop button for Field meas
+            self.pushButton_15b.setDisabled(True)
+            self.pushButton_2.setDisabled(True)
+            self.pushButton_s16.setEnabled(True)
+            sleep(2)
+            ## Thread start
+            # Define the list of angles we will sweep through.
+            self.sens_sweep = np.arange(self.spinBox_s4.value(),
+                                         self.spinBox_s6.value() + 1,
+                                         self.spinBox_s10.value()
+                                         )
+            # Array in which we'll store the measured voltage.
+            self.volt_senssweep = []
+            current = self.spinBox_s12.value() * 10 ** (-6)
+            angle = self.spinBox_s8.value()
+            num_meas = self.spinBox_s14.value()
+            saturation_f = self.spinBox_s1.value()
+            self.worker = SensThread(var1=self.field_sweep, var2=current,
+                                     var3=angle, var4=num_meas,
+                                     var5=self.insts_init.instrument_list,
+                                     var6=saturation_f)
+
+            self.worker.signals.sample_saturated.connect(self.cable_change_dialog)
+            self.worker.signals.result.connect(self.update_plot_sens)
+            self.worker.signals.result2.connect(self.update_legend_s)
+            self.worker.signals.finished.connect(self.thread_complete)
+            self.worker.signals.progress.connect(self.thread_progress)
+            self.pushButton_s16.clicked.connect(self.worker.finish_run)
+            self.signal.dialog_closed.connect(self.worker.sample_saturated)
+            self.threadpool.start(self.worker)
+
+    def cable_change_dialog(self):
+        warn = QMessageBox()
+        warn.setWindowTitle('Change DC source connection')
+        ico = os.path.join(os.path.dirname(__file__), "icons/warn.png")
+        pixmap = QPixmap(ico).scaledToHeight(64,
+                                             Qt.SmoothTransformation)
+        warn.setIconPixmap(pixmap)
+        warn.setText('Sample has been saturated. Please connect the Keithley\n'
+                     'source to the H Coils, and the Siglent source to the\n'
+                     'sample.')
+        warn.setStandardButtons(QMessageBox.Ok)
+        warn.buttonClicked.connect(lambda: self.close_and_change(warn))
+        warn.exec_()
+
+    def close_and_change(self, dialog):
+        dialog.close()
+        print("Dialog closed")
+        self.signal.dialog_closed.emit()
+
     def update_legend_a(self, stri):
         self.statusLabel_a.setText(stri)
 
     def update_legend_b(self, stri):
         self.statusLabel_b.setText(stri)
+
+    def update_legend_s(self, stri):
+        self.statusLabel_s19.setText(stri)
 
     def update_plot_angle(self, s):
         self.plotwid_curve.addPoints([s[0]], [s[1]])
@@ -483,6 +651,10 @@ class Ui_MainWindow(QMainWindow):
     def update_plot_field(self, s):
         self.plotwid_2_curve.addPoints([s[0]], [s[1]])
         self.volt_fieldsweep.append(s[1])
+
+    def update_plot_sens(self, s):
+        self.plotwid_s_curve.addPoints([s[0]], [s[1]])
+        self.volt_senssweep.append(s[1])
 
     def thread_complete(self):
         print("THREAD COMPLETE!")

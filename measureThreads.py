@@ -13,6 +13,7 @@ class WorkerSignals(QObject):
     result = pyqtSignal(object)
     progress = pyqtSignal(int)
     result2 = pyqtSignal(object)
+    sample_saturated = pyqtSignal(object)
 
 class AngleThread(QRunnable):
     def __init__(self, var1, var2, var3, var4, var5):
@@ -180,6 +181,97 @@ class FieldThread(QRunnable):
         self.rm.close()
         self.signals.finished.emit()
         self.running = False
+
+    def finish_run(self):
+        self.running = False
+        print("Changed running to: {}".format(self.running))
+
+
+class SensThread(QRunnable):
+    def __init__(self, var1, var2, var3, var4, var5, var6):
+        super(SensThread, self).__init__()
+        self.signals = WorkerSignals()
+        print("Worker thread started (Field measurement)")
+        self.field = var1
+        self.current = var2 # en microamps
+        self.angle = float(var3)
+        self.num_meas = int(var4)
+        self.instrument_list = var5
+        self.saturation_f = var6
+        self.instrument_list[3].replace('ASRL', '')
+        self.instrument_list[3].replace('::INSTR', '')
+        self.arduino_dir = self.instrument_list[3]
+        self.motor_pins = [12, 11, 10, 9]
+        self.relay_pins = [2, 3, 4, 5]
+        self.running = True
+        self.saturation = False
+        print("From SENSWORKER: Saturation Field: {}".format(self.saturation_f))
+        print("From SENSWORKER: Field values to be swept: {}".format(self.field))
+        print("From SENSWORKER: Sample Angle: {}".format(self.angle))
+        print("From SENSWORKER: Applied current: {}".format(self.current))
+        print("From SENSWORKER: Number of measurements per field: {}".format(self.num_meas))
+        print("From SENSWORKER: List of instruments: {}".format(self.instrument_list))
+        print("From SENSWORKER: MEASUREMENT START (Field sweep)")
+
+    def sample_saturated(self):
+        self.saturation = True
+
+    @pyqtSlot()
+    def run(self):
+        self.rm = pyvisa.ResourceManager('@py')
+        self.multimeter = inst.Keithley2010(self.rm, self.instrument_list[0])
+        self.kcurrent = inst.Keithley6221(self.rm, self.instrument_list[1])
+        self.agilent = inst.Fuente_Siglent(self.rm, self.instrument_list[2])
+        # Usamos los pines 9, 10, 11, 12 del arduino.
+        self.armot = motor.ArduinoM(self.arduino_dir, self.motor_pins, self.relay_pins)
+        # Set angle and sample current
+        # delay in one total step = 0.4 secs
+        self.armot.move_new(self.armot.angle_to_steps(self.angle), 0.05)
+        self.armot.change_relay_config(np.sign(self.saturation_f))
+        sleep(1)
+        self.agilent.set_voltage(1, inst.field_to_voltage(self.saturation_f))
+        sleep(1)
+        self.agilent.channel_1_on()
+        sleep(5)
+        self.agilent.channel_1_off()
+        sleep(1)
+        self.signals.sample_saturated.emit()
+        while self.saturation:
+            # Fuente agilent alimenta a la muestra
+            self.agilent.set_current(self.current)
+            sleep(1)
+            self.agilent.channel_1_on()
+            # Armamos array ida y vuelta de los campos
+            # Setteamos la direcc del campo inicial.
+
+            for field in self.field:
+                if self.running:
+                    self.kcurrent.set_current(inst.field_to_current(field))
+                    sleep(1)
+                    mean, std = inst.mean_voltage(self.num_meas, self.multimeter)
+                    self.signals.result2.emit('Measuring at field {} G ({} Volts)'.format(field,
+                                                                                          inst.field_to_current(field)))
+                    self.signals.result.emit([field, mean, std])
+                else:
+                    self.agilent.channel_1_off()
+                    sleep(1)
+                    self.kcurrent.current_off()
+                    # Return arduino to starting position
+                    self.signals.result2.emit('Moving motor back to start position.')
+                    self.armot.move_new(self.armot.steps_moved * (-1), 0.03)
+                    self.rm.close()
+                    self.signals.finished.emit()
+                    return
+
+            # Al terminar, cerramos rm y emitimos señal.
+            self.kcurrent.current_off()
+            self.agilent.channel_1_off()
+            self.signals.result2.emit('Moving motor back to start position.')
+            self.armot.move_new(self.armot.steps_moved * (-1), 0.03)
+            self.rm.close()
+            self.signals.finished.emit()
+            self.running = False
+            self.saturation = False
 
     def finish_run(self):
         self.running = False
