@@ -368,6 +368,7 @@ class Ui_MainWindow(QMainWindow):
         instrument_menu = QAction("Initialize instruments", fileMenu)
         saveang_menu = QAction("Save V vs Angle measurements", fileMenu)
         savefield_menu = QAction("Save V vs Field measurments", fileMenu)
+        savesens_menu = QAction("Save Sensor Sensitivity measurment", fileMenu)
         setangle_menu = QAction("Set Angle", fileMenu)
         about_menu = QAction("About HallRober", helpMenu)
         fileMenu.addAction(selectFile_menu)
