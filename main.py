@@ -10,21 +10,21 @@ from pathlib import Path
 from datetime import date
 from csv import writer, QUOTE_NONE
 from time import sleep
-from measureThreads import AngleThread, FieldThread
+from measureThreads import AngleThread, FieldThread, SensThread
 from initInst import InitializeInstruments
 from angleInit import angleInit
 __version__ = "1.0"
 
 
-class Signals(QObject):
-    dialog_closed = pyqtSignal(object)
+
 
 class Ui_MainWindow(QMainWindow):
+    showMessage_saturation = pyqtSignal()
     def __init__(self, parent=None):
         super().__init__()
         self.threadpool = QThreadPool()
         self.setupUi()
-        self.signal = Signals()
+        self.sample_saturated = False
 
     def setupUi(self):
         if not self.objectName():
@@ -338,9 +338,9 @@ class Ui_MainWindow(QMainWindow):
         self.SensSweep_plotLayout = QVBoxLayout(self.SensSweep)
         self.plotwid_s = pg.PlotWidget(self.SensSweep)
         self.plotwid_s_curve = pg.ScatterPlotItem(size=5,
-                                                  brush=pg.mkBrush(30, 200, 100, 200),
-                                                  pen=pg.mkPen('b', width='2'))
-        self.plotwid_s.addItem(self.plotwid_2_curve)
+                                                  brush=pg.mkBrush(100, 20, 100, 200)
+                                                  )
+        self.plotwid_s.addItem(self.plotwid_s_curve)
         self.plotwid_s.setBackground('w')
         self.plotwid_s.setLabel('left', 'Hall Voltage [V]')
         self.plotwid_s.setLabel('bottom', 'Field (G)')
@@ -356,7 +356,6 @@ class Ui_MainWindow(QMainWindow):
         #########################################################
         self.mainLayout.addLayout(self.stackedLayout)
         self.centralwidget.setLayout(self.mainLayout)
-
 
 
         # Menu bar
@@ -529,7 +528,7 @@ class Ui_MainWindow(QMainWindow):
                 for row in contents:
                     wr.writerow(row)
                 wr.writerow(['Field (deg),Hall Voltage (V),Voltage std (V)'])
-                data = zip(self.field_sens, self.volt_senssweep, self.volt_senssweep_std)
+                data = zip(self.sens_sweep, self.volt_senssweep, self.volt_senssweep_std)
                 wr.writerows(data)
                 print('Data written to {}'.format(self.lineEdit_fname.text()))
                 self.update_legend_s('Data written to {}'.format(self.lineEdit_fname.text()))
@@ -623,24 +622,23 @@ class Ui_MainWindow(QMainWindow):
                                          self.spinBox_s10.value()
                                          )
             # Array in which we'll store the measured voltage & field.
-            self.field_sens = []
             self.volt_senssweep = []
             self.volt_senssweep_std = []
             current = self.spinBox_s12.value() * 10 ** (-6)
             angle = self.spinBox_s8.value()
             num_meas = self.spinBox_s14.value()
-            saturation_f = self.spinBox_s1.value()
-            self.worker = SensThread(var1=self.field_sweep, var2=current,
+            saturation_f = self.spinBox_s2.value()
+            self.worker = SensThread(self, var1=self.sens_sweep, var2=current,
                                      var3=angle, var4=num_meas,
                                      var5=self.insts_init.instrument_list,
                                      var6=saturation_f)
 
-            self.worker.signals.sample_saturated.connect(self.cable_change_dialog)
+            self.showMessage_saturation.connect(self.cable_change_dialog)
             self.worker.signals.result.connect(self.update_plot_sens)
             self.worker.signals.result2.connect(self.update_legend_s)
             self.worker.signals.finished.connect(self.thread_complete)
             self.pushButton_s16.clicked.connect(self.worker.finish_run)
-            self.signal.dialog_closed.connect(self.worker.sample_saturated)
+            #self.signal.dialog_closed.connect(self.worker.sample_saturated)
             self.threadpool.start(self.worker)
 
     def cable_change_dialog(self):
@@ -651,7 +649,7 @@ class Ui_MainWindow(QMainWindow):
                                              Qt.SmoothTransformation)
         warn.setIconPixmap(pixmap)
         warn.setText('Sample has been saturated. Please connect the Keithley\n'
-                     'source to the H Coils, and the Siglent source to the\n'
+                     'source to the H Coils, and CH2 from the Siglent source to the\n'
                      'sample.')
         warn.setStandardButtons(QMessageBox.Ok)
         warn.buttonClicked.connect(lambda: self.close_and_change(warn))
@@ -660,7 +658,7 @@ class Ui_MainWindow(QMainWindow):
     def close_and_change(self, dialog):
         dialog.close()
         print("Dialog closed")
-        self.signal.dialog_closed.emit()
+        self.sample_saturated = True
 
     def update_legend_a(self, stri):
         self.statusLabel_a.setText(stri)
@@ -684,7 +682,6 @@ class Ui_MainWindow(QMainWindow):
 
     def update_plot_sens(self, s):
         self.plotwid_s_curve.addPoints([s[0]], [s[1]])
-        self.field_sens.append(s[0])
         self.volt_senssweep.append(s[1])
         self.volt_senssweep_std.append(s[2])
 

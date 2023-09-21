@@ -13,7 +13,7 @@ class WorkerSignals(QObject):
     result = pyqtSignal(object)
     progress = pyqtSignal(int)
     result2 = pyqtSignal(object)
-    sample_saturated = pyqtSignal(object)
+    sample_saturated = pyqtSignal()
 
 class AngleThread(QRunnable):
     def __init__(self, var1, var2, var3, var4, var5):
@@ -188,8 +188,9 @@ class FieldThread(QRunnable):
 
 
 class SensThread(QRunnable):
-    def __init__(self, var1, var2, var3, var4, var5, var6):
+    def __init__(self, app, var1, var2, var3, var4, var5, var6):
         super(SensThread, self).__init__()
+        self.app = app
         self.signals = WorkerSignals()
         print("Worker thread started (Field measurement)")
         self.field = var1
@@ -235,43 +236,52 @@ class SensThread(QRunnable):
         sleep(5)
         self.agilent.channel_1_off()
         sleep(1)
-        self.signals.sample_saturated.emit()
-        while self.saturation:
-            # Fuente agilent alimenta a la muestra
-            self.agilent.set_current(self.current)
-            sleep(1)
-            self.agilent.channel_1_on()
-            # Armamos array ida y vuelta de los campos
-            # Setteamos la direcc del campo inicial.
+        #self.app.sample_saturated = False
+        self.app.showMessage_saturation.emit()
+        while not self.app.sample_saturated:
+            sleep(0.1)
+        # Fuente agilent alimenta a la muestra
+        print("FROM SENS THREAD: SAMPLE SATURATED. MEASUREMENT START")
+        self.agilent.set_channel(2)
+        sleep(1)
+        self.agilent.set_current(2, self.current)
+        sleep(1)
+        self.agilent.channel_2_on()
+        sleep(1)
+        # Relay in forward mode
+        self.armot.change_relay_config(1)
+        sleep(1)
+        #test
+        self.running = True
 
-            for field in self.field:
-                if self.running:
-                    self.kcurrent.set_current(inst.field_to_current(field))
-                    sleep(1)
-                    mean, std = inst.mean_voltage(self.num_meas, self.multimeter)
-                    self.signals.result2.emit('Measuring at field {} G ({} Volts)'.format(field,
-                                                                                          inst.field_to_current(field)))
-                    self.signals.result.emit([field, mean, std])
-                else:
-                    self.agilent.channel_1_off()
-                    sleep(1)
-                    self.kcurrent.current_off()
-                    # Return arduino to starting position
-                    self.signals.result2.emit('Moving motor back to start position.')
-                    self.armot.move_new(self.armot.steps_moved * (-1), 0.03)
-                    self.rm.close()
-                    self.signals.finished.emit()
-                    return
+        for field in self.field:
+            if self.running:
+                self.kcurrent.set_current(inst.field_to_current(field))
+                sleep(1)
+                mean, std = inst.mean_voltage(self.num_meas, self.multimeter)
+                self.signals.result2.emit('Measuring at field {} G ({} amps)'.format(field,
+                                                                                      inst.field_to_current(field)))
+                self.signals.result.emit([field, mean, std])
+            else:
+                #self.agilent.channel_2_off()
+                sleep(1)
+                self.kcurrent.current_off()
+                # Return arduino to starting position
+                self.signals.result2.emit('Moving motor back to start position.')
+                self.armot.move_new(self.armot.steps_moved * (-1), 0.03)
+                self.rm.close()
+                self.signals.finished.emit()
+                return
 
             # Al terminar, cerramos rm y emitimos señal.
             self.kcurrent.current_off()
-            self.agilent.channel_1_off()
+            self.agilent.channel_2_off()
             self.signals.result2.emit('Moving motor back to start position.')
             self.armot.move_new(self.armot.steps_moved * (-1), 0.03)
             self.rm.close()
             self.signals.finished.emit()
             self.running = False
-            self.saturation = False
+            self.app.sample_saturated = False
 
     def finish_run(self):
         self.running = False
