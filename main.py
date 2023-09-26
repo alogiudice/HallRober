@@ -16,8 +16,6 @@ from angleInit import angleInit
 __version__ = "1.0"
 
 
-
-
 class Ui_MainWindow(QMainWindow):
     showMessage_saturation = pyqtSignal()
     def __init__(self, parent=None):

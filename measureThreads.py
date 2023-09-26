@@ -1,3 +1,5 @@
+from pyvisa import InvalidSession
+
 import equipos as inst
 from PyQt5.QtCore import QObject, pyqtSignal, QRunnable, pyqtSlot
 from random import randint
@@ -252,20 +254,32 @@ class SensThread(QRunnable):
         self.armot.change_relay_config(1)
         sleep(1)
         #test
-        self.running = True
-
         for field in self.field:
             if self.running:
+                print(self.field)
+                print(inst.field_to_current(field))
+                try:
+                    self.kcurrent.identity()
+                except:
+                    self.rm = pyvisa.ResourceManager('@py')
+                    self.multimeter = inst.Keithley2010(self.rm, self.instrument_list[0])
+                    self.kcurrent = inst.Keithley6221(self.rm, self.instrument_list[1])
+                    self.agilent = inst.Fuente_Siglent(self.rm, self.instrument_list[2])
+
                 self.kcurrent.set_current(inst.field_to_current(field))
-                sleep(1)
+                sleep(5)
                 mean, std = inst.mean_voltage(self.num_meas, self.multimeter)
                 self.signals.result2.emit('Measuring at field {} G ({} amps)'.format(field,
-                                                                                      inst.field_to_current(field)))
+                                                                                     inst.field_to_current(field)))
+                print('emitio señal')
                 self.signals.result.emit([field, mean, std])
+                print('running is {}'.format(self.running))
             else:
+                print('pasamos al else')
+                print('Running is {}'.format(self.running))
                 #self.agilent.channel_2_off()
                 sleep(1)
-                self.kcurrent.current_off()
+                #self.kcurrent.current_off()
                 # Return arduino to starting position
                 self.signals.result2.emit('Moving motor back to start position.')
                 self.armot.move_new(self.armot.steps_moved * (-1), 0.03)
