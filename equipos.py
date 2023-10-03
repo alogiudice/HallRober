@@ -11,6 +11,7 @@ Created on Mon Apr 11 16:09:03 2022
 from time import sleep
 import numpy as np
 import pyvisa
+from pyvisa.constants import StopBits, Parity
 
 class Keithley6221:
     # Fuente de Corriente Keithley   
@@ -130,21 +131,22 @@ class Keithley2010:
         self.inst.write(':VOLT:NPLCycles {}'.format(rate))
         
 class Gaussimetro:
+    # Ahora el gaussimetro LakeShore 455 anda correctamente al especificar los valores de data bits, flowcontrol,
+    # parity y el stop bit. :)
+    # Estos valores estan en el manual del dispositivo.
     def __init__(self, rm, name):
-        self.inst = rm.open_resource('{}'.format(name))
-        #'ASRL/dev/ttyUSB0::INSTR'
+        self.inst = rm.open_resource('{}'.format(name), baud_rate=9600, data_bits=7, flow_control=2,
+                                     parity=Parity.odd, stop_bits=StopBits.one)
         
     def identity(self):
-        self.inst.write('*IDN?\n')
+        self.inst.write('*IDN?')
         sleep(1)
         print('Hi! My name is {}'.format(self.inst.read_raw()))
         
     def read(self):
-        test = self.inst.query('RDGFIELD?\n')
-        #wait one second before reading output. 
-        #ime.sleep(1)
-        #test = self.inst.read_bytes(1)
-        return test
+        field = self.inst.query('RDGFIELD?')
+        sleep(1)
+        return field
 
 
 ## Funciones auxiliares para las mediciones ##
