@@ -85,13 +85,13 @@ class Ui_MainWindow(QMainWindow):
         self.label_4.setText(u"Start angle")
         self.AngleSweep_glayout.addWidget(self.label_4, 0, 0, 1, 1)
         self.spinBox = QSpinBox(self.AngleSweep)
-        self.spinBox.setRange(0, 90)
+        self.spinBox.setRange(-90, 90)
         self.AngleSweep_glayout.addWidget(self.spinBox, 0, 1, 1, 1)
         self.label_7 = QLabel(self.AngleSweep)
         self.label_7.setText(u"Current (in uA)")
         self.AngleSweep_glayout.addWidget(self.label_7, 0, 2, 1, 1)
         self.spinBox_4 = QSpinBox(self.AngleSweep)
-        self.spinBox_4.setRange(0, 5000)
+        self.spinBox_4.setRange(0, 30000)
         self.spinBox_4.setSingleStep(5)
         self.AngleSweep_glayout.addWidget(self.spinBox_4, 0, 3, 1, 1)
         self.label_5 = QLabel(self.AngleSweep)
@@ -212,7 +212,7 @@ class Ui_MainWindow(QMainWindow):
         self.FieldSweep_glayout.addWidget(self.label_11b, 2, 2, 1, 1)
         self.spinBox_12b = QSpinBox(self.FieldSweep)
         self.spinBox_12b.setSingleStep(5)
-        self.spinBox_12b.setRange(0, 5000)
+        self.spinBox_12b.setRange(0, 30000)
         self.FieldSweep_glayout.addWidget(self.spinBox_12b, 2, 3, 1, 1)
         self.label_13b = QLabel(self.FieldSweep)
         self.label_13b.setText(u"Estimated time:")
@@ -296,8 +296,8 @@ class Ui_MainWindow(QMainWindow):
         self.label_s9.setText("Field Step (G)")
         self.SensSweep_glayout.addWidget(self.label_s9, 0, 2, 1, 1)
         self.spinBox_s10 = QDoubleSpinBox(self.SensSweep)
-        self.spinBox_s10.setRange(0.1, 1)
-        self.spinBox_s10.setSingleStep(0.1)
+        self.spinBox_s10.setRange(0.01, 1)
+        self.spinBox_s10.setSingleStep(0.05)
         self.spinBox_s10.setValue(0.1)
         self.SensSweep_glayout.addWidget(self.spinBox_s10, 0, 3, 1, 1)
 
@@ -306,7 +306,7 @@ class Ui_MainWindow(QMainWindow):
         self.SensSweep_glayout.addWidget(self.label_s11, 1, 2, 1, 1)
         self.spinBox_s12 = QSpinBox(self.SensSweep)
         self.spinBox_s12.setSingleStep(5)
-        self.spinBox_s12.setRange(0, 5000)
+        self.spinBox_s12.setRange(0, 30000)
         self.SensSweep_glayout.addWidget(self.spinBox_s12, 1, 3, 1, 1)
 
         self.label_s13 = QLabel(self.SensSweep)
@@ -373,6 +373,7 @@ class Ui_MainWindow(QMainWindow):
         fileMenu.addAction(instrument_menu)
         fileMenu.addAction(saveang_menu)
         fileMenu.addAction(savefield_menu)
+        fileMenu.addAction(savesens_menu)
         fileMenu.addAction(setangle_menu)
         helpMenu.addAction(about_menu)
         selectFile_menu.triggered.connect(self.save_Filename)
@@ -616,7 +617,7 @@ class Ui_MainWindow(QMainWindow):
             ## Thread start
             # Define the list of angles we will sweep through.
             self.sens_sweep = np.arange(self.spinBox_s4.value(),
-                                         self.spinBox_s6.value() + 1,
+                                         self.spinBox_s6.value(),
                                          self.spinBox_s10.value()
                                          )
             # Array in which we'll store the measured voltage & field.
