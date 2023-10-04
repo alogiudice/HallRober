@@ -71,16 +71,16 @@ class ArduinoM:
     def change_relay_config(self, config):
         # 1 is forward and -1 is reverse.
         if config == 1:
-            self.relay1.write(True)
-            self.relay2.write(False)
-            self.relay3.write(False)
-            self.relay4.write(True)
+            self.relay1.write(0)
+            self.relay2.write(1)
+            self.relay3.write(1)
+            self.relay4.write(0)
             print('Relays 1 and 4 on (forward config)')
         elif config == -1:
-            self.relay1.write(False)
-            self.relay2.write(True)
-            self.relay3.write(True)
-            self.relay4.write(False)
+            self.relay1.write(1)
+            self.relay2.write(0)
+            self.relay3.write(0)
+            self.relay4.write(1)
             print('Relays 2 and 3 on (inverse config)')
         else:
             print('No change in relay configuration')
