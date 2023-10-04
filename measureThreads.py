@@ -1,5 +1,6 @@
 from pyvisa import InvalidSession
 
+import arMotor
 import equipos as inst
 from PyQt5.QtCore import QObject, pyqtSignal, QRunnable, pyqtSlot
 from random import randint
@@ -61,6 +62,8 @@ class AngleThread(QRunnable):
         num_steps = self.armot.angle_to_steps(self.angle_list[2])
         self.kcurrent.set_current(self.current)
         self.kcurrent.current_on()
+        self.armot.change_relay_config(np.sign(self.field))
+        sleep(1)
         self.agilent.set_voltage(1, inst.field_to_voltage(self.field))
         self.agilent.channel_1_on()
         sleep(1)
@@ -212,13 +215,13 @@ class SensThread(QRunnable):
         self.kcurrent = inst.Keithley6221(self.rm, self.instrument_list[1])
         self.agilent = inst.Fuente_Siglent(self.rm, self.instrument_list[2])
         self.armot = motor.ArduinoM(self.arduino_dir, self.motor_pins, self.relay_pins)
-        print("From SENSWORKER: Saturation Field: {}".format(self.saturation_f))
+        print("From SENSWORKER: Saturation Field: {} G".format(self.saturation_f))
         print("From SENSWORKER: Field values to be swept: {}".format(self.field))
         print("From SENSWORKER: Sample Angle: {}".format(self.angle))
-        print("From SENSWORKER: Applied current: {}".format(self.current))
+        print("From SENSWORKER: Applied current: {} A".format(self.current))
         print("From SENSWORKER: Number of measurements per field: {}".format(self.num_meas))
         print("From SENSWORKER: List of instruments: {}".format(self.instrument_list))
-        print("From SENSWORKER: MEASUREMENT START (Field sweep)")
+        print("From SENSWORKER: MEASUREMENT START (Sensitivity sweep)")
 
     @pyqtSlot()
     def run(self):
@@ -226,20 +229,23 @@ class SensThread(QRunnable):
         # delay in one total step = 0.4 secs
         self.armot.move_new(self.armot.angle_to_steps(self.angle), 0.05)
         self.armot.change_relay_config(np.sign(self.saturation_f))
+        self.multimeter.set_rate(5)
         sleep(1)
         self.agilent.set_voltage(1, inst.field_to_voltage(self.saturation_f))
+        print("Voltage for sample saturation: {} V".format(inst.field_to_voltage(self.saturation_f)))
         sleep(1)
         self.agilent.channel_1_on()
-        sleep(5)
+        sleep(10)
         self.agilent.channel_1_off()
         sleep(1)
-        #self.app.sample_saturated = False
         self.app.showMessage_saturation.emit()
         while not self.app.sample_saturated:
             sleep(0.1)
         # Fuente agilent alimenta a la muestra
         print("FROM SENS THREAD: SAMPLE SATURATED. MEASUREMENT START")
         self.agilent.set_channel(2)
+        sleep(1)
+        self.agilent.set_voltage(2, 2.5)
         sleep(1)
         self.agilent.set_current(2, self.current)
         sleep(1)
@@ -248,32 +254,22 @@ class SensThread(QRunnable):
         # Relay in forward mode for keithley source
         self.armot.change_relay_config(1)
         sleep(1)
+        self.kcurrent.set_current(inst.field_to_current(self.field[0]))
+        self.kcurrent.current_on()
         #test
         for field in self.field:
             if self.running:
-                print(self.field)
-                print(inst.field_to_current(field))
-                # try:
-                #     self.kcurrent.identity()
-                # except:
-                #     self.rm = pyvisa.ResourceManager('@py')
-                #     self.multimeter = inst.Keithley2010(self.rm, self.instrument_list[0])
-                #     self.kcurrent = inst.Keithley6221(self.rm, self.instrument_list[1])
-                #     self.agilent = inst.Fuente_Siglent(self.rm, self.instrument_list[2])
-
                 self.kcurrent.set_current(inst.field_to_current(field))
+                sleep(5)
                 mean, std = inst.mean_voltage(self.num_meas, self.multimeter)
                 self.signals.result2.emit('Measuring at field {} G ({} amps)'.format(field,
                                                                                      inst.field_to_current(field)))
-                print('emitio señal')
                 self.signals.result.emit([field, mean, std])
-                print('running is {}'.format(self.running))
             else:
-                print('pasamos al else')
                 print('Running is {}'.format(self.running))
-                #self.agilent.channel_2_off()
+                self.agilent.channel_2_off()
                 sleep(1)
-                #self.kcurrent.current_off()
+                self.kcurrent.current_off()
                 # Return arduino to starting position
                 self.signals.result2.emit('Moving motor back to start position.')
                 self.armot.move_new(self.armot.steps_moved * (-1), 0.03)
@@ -293,3 +289,32 @@ class SensThread(QRunnable):
     def finish_run(self):
         self.running = False
         print("Changed running to: {}".format(self.running))
+
+class SampleReset(QRunnable):
+    def __init__(self, app, var1, var2, var3):
+        self.field = var1
+        self.app = app
+        self.signals = WorkerSignals()
+        self.stabilization_time = var3
+        self.rm = pyvisa.ResourceManager('@py')
+        self.instrument_list = var2
+        self.motor_pins = [12, 11, 10, 9]
+        self.relay_pins = [2, 3, 4, 5]
+        self.siglent = inst.Fuente_Siglent(self.rm, self.instrument_list[2])
+        self.arduino_dir = self.instrument_list[3]
+        self.arduino = arMotor.ArduinoM(self.rm, self.arduino_dir, self.motor_pins, self.relay_pins)
+
+    @pyqtSlot()
+    def run(self):
+        print('FROM SAMPLERESET: SET ANGLE TO 90DEG')
+        self.arduino.move_new(self.arduino.angle_to_steps(90))
+        print('FROM SAMPLERESET: SATURATE SAMPLE WITH {} G'.format(self.field))
+        self.siglent.set_voltage(1, inst.field_to_voltage(self.field))
+        sleep(1)
+        self.siglent.channel_1_on()
+        print('FROM SAMPLERESET: STABILIZATION TIME - {} SECS'.format(self.stabilization_time))
+        sleep(self.stabilization_time)
+        print('FROM SAMPLERESET: STABILIZATION COMPLETED.')
+        self.siglent.channel_1_off()
+        sleep(1)
+
