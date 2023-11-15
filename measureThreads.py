@@ -148,13 +148,29 @@ class FieldThread(QRunnable):
         self.kcurrent.current_on()
         self.armot.change_relay_config(np.sign(self.field[0]))
         last_field = self.field[0]
-        sleep(1)
-        self.agilent.channel_1_on()
-        sleep(1)
         # Armamos array ida y vuelta de los campos
         self.field_total = np.concatenate((self.field, np.flip(self.field)))
         # Setteamos la direcc del campo inicial.
         self.armot.change_relay_config(np.sign(self.field_total[0]))
+        # Saturamos la muestra y lo rehacemos para el otro lado para "resetear"
+        sleep(1)
+        self.agilent.set_voltage(1, inst.field_to_voltage(self.field_total[0]))
+        sleep(1)
+        self.agilent.channel_1_on()
+        sleep(10)
+        self.agilent.channel_1_off()
+        sleep(1)
+        self.armot.change_relay_config(np.sign(self.field_total[0] * -1))
+        sleep(1)
+        self.agilent.channel_1_on()
+        sleep(10)
+        self.agilent.channel_1_off()
+        sleep(1)
+        # Dejamos la configurac del inicio del run.
+        self.armot.change_relay_config(np.sign(self.field[0]))
+        sleep(1)
+        self.agilent.channel_1_on()
+        sleep(1)
         for field in self.field_total:
             if self.running:
                 if self.sign_changed(field, last_field):
@@ -238,6 +254,18 @@ class SensThread(QRunnable):
         sleep(10)
         self.agilent.channel_1_off()
         sleep(1)
+        # Saturo para el otro lado
+        self.armot.change_relay_config(np.sign(self.saturation_f) * (-1))
+        sleep(1)
+        self.agilent.channel_1_on()
+        sleep(10)
+        self.agilent.channel_1_off()
+        sleep(1)
+        self.armot.change_relay_config(np.sign(self.saturation_f))
+        sleep(1)
+        self.agilent.channel_1_on()
+        sleep(10)
+        self.agilent.channel_1_off()
         self.app.showMessage_saturation.emit()
         while not self.app.sample_saturated:
             sleep(0.1)
