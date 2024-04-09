@@ -204,7 +204,7 @@ class Ui_MainWindow(QMainWindow):
         self.label_9b.setText("Field Step (G)")
         self.FieldSweep_glayout.addWidget(self.label_9b, 2, 0, 1, 1)
         self.spinBox_10b = QDoubleSpinBox(self.FieldSweep)
-        self.spinBox_10b.setRange(0.1, 5)
+        self.spinBox_10b.setRange(0.1, 20)
         self.spinBox_10b.setSingleStep(0.1)
         self.FieldSweep_glayout.addWidget(self.spinBox_10b, 2, 1, 1, 1)
         self.label_11b = QLabel(self.FieldSweep)
@@ -435,8 +435,8 @@ class Ui_MainWindow(QMainWindow):
     def helpAbout(self):
         msg = QMessageBox.about(self, "About HallRober",
                                     """<b>HallRober - Measuring the Planar Hall Effect.</b> 
-                                    <p>Version %s (2023) by Agostina Lo Giudice.
-                                    (logiudic@tandar.cnea.gov.ar)
+                                    <p>Version %s (2024) by Agostina Lo Giudice.
+                                    (agostina.logiudice@gmail.com)
                                     <p>This program is distributed under the GNU 
                                     Public License v3.
                                     """ % __version__)
@@ -597,7 +597,7 @@ class Ui_MainWindow(QMainWindow):
             num_meas = self.spinBox_8b.value()
             self.worker = FieldThread(var1=self.field_sweep, var2=current,
                                       var3=angle, var4=num_meas,
-                                      var5 = self.insts_init.instrument_list)
+                                      var5=self.insts_init.instrument_list)
             self.worker.signals.result.connect(self.update_plot_field)
             self.worker.signals.result2.connect(self.update_legend_b)
             self.worker.signals.finished.connect(self.thread_complete)
@@ -620,6 +620,9 @@ class Ui_MainWindow(QMainWindow):
                                          self.spinBox_s6.value(),
                                          self.spinBox_s10.value()
                                          )
+            # Hacemos un ida y vuelta de la corriente (only for testing purposes)
+            # Si no sirve, hay que resaturar y volver
+            self.sens_sweep = np.concatenate((self.sens_sweep, np.flip(self.sens_sweep)))
             # Array in which we'll store the measured voltage & field.
             self.volt_senssweep = []
             self.volt_senssweep_std = []
@@ -648,7 +651,7 @@ class Ui_MainWindow(QMainWindow):
                                              Qt.SmoothTransformation)
         warn.setIconPixmap(pixmap)
         warn.setText('Sample has been saturated. Please connect the Keithley\n'
-                     'source to the H Coils, and CH2 from the Siglent source to the\n'
+                     'source to the H Coils, and an external current source to the\n'
                      'sample.')
         warn.setStandardButtons(QMessageBox.Ok)
         warn.buttonClicked.connect(lambda: self.close_and_change(warn))
