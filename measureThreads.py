@@ -52,7 +52,7 @@ class AngleThread(QRunnable):
         self.multimeter = inst.Keithley2010(self.rm, self.instrument_list[0])
         self.kcurrent = inst.Keithley6221(self.rm, self.instrument_list[1])
         # self.agilent = inst.FuenteAgilent(self.rm, self.instrument_list[2])
-        self.agilent = inst.Fuente_Siglent(self.rm, self.instrument_list[2])
+        self.agilent = inst.Keithley2260(self.rm, self.instrument_list[2])
         # Usamos los pines 9, 10, 11, 12 del arduino.
         self.armot = motor.ArduinoM(self.arduino_dir, self.motor_pins, self.relay_pins)
         # Pasamos a steps los valores angulares
@@ -64,8 +64,11 @@ class AngleThread(QRunnable):
         self.kcurrent.current_on()
         self.armot.change_relay_config(np.sign(self.field))
         sleep(1)
-        self.agilent.set_voltage(1, inst.field_to_voltage(self.field))
-        self.agilent.channel_1_on()
+        #Setteamos un voltaje grande y luego vamos a corrientes pequeñas para estar en CC mode
+        self.agilent.set_voltage(35)
+        self.agilent.set_current(inst.field_to_current(self.field))
+        #self.agilent.set_voltage(1, inst.field_to_voltage(self.field))
+        self.agilent.output_on()
         sleep(1)
         # Vamos al valor inicial del ang (es decir, move to init_step)
         self.armot.move_new(steps_inic, 0.05)
@@ -78,7 +81,7 @@ class AngleThread(QRunnable):
                 self.signals.result2.emit('Current step: {} ({} deg)\n'.format(self.armot.steps_moved,
                                                                                current_angle))
             else:
-                self.agilent.channel_1_off()
+                self.agilent.output_off()
                 self.kcurrent.current_off()
                 self.rm.close()
                 # Return to starting position
@@ -88,7 +91,7 @@ class AngleThread(QRunnable):
                 return
         # Al terminar, cerramos rm y emitimos señal.
         self.kcurrent.current_off()
-        self.agilent.channel_1_off()
+        self.agilent.output_off()
         self.signals.result2.emit('Moving motor back to start position.')
         self.armot.move_new(self.armot.steps_moved * (-1), 0.005)
         self.rm.close()
@@ -128,7 +131,7 @@ class FieldThread(QRunnable):
             # NO sign change. Proceed
             return False
         elif varr2 == 0:
-            return False
+            return True
         else:
             return True
 
@@ -138,12 +141,14 @@ class FieldThread(QRunnable):
         self.multimeter = inst.Keithley2010(self.rm, self.instrument_list[0])
         self.kcurrent = inst.Keithley6221(self.rm, self.instrument_list[1])
         #self.agilent = inst.FuenteAgilent(self.rm, self.instrument_list[2])
-        self.agilent = inst.Fuente_Siglent(self.rm, self.instrument_list[2])
+        self.coils = inst.Keithley2260(self.rm, self.instrument_list[2])
+        self.coils.set_voltage(35)
         # Usamos los pines 9, 10, 11, 12 del arduino.
         self.armot = motor.ArduinoM(self.arduino_dir, self.motor_pins, self.relay_pins)
         # Set angle and sample current
         # delay in one total step = 0.4 secs
         self.armot.move_new(self.armot.angle_to_steps(self.angle), 0.05)
+        self.armot.turnoff_motor()
         self.kcurrent.set_current(self.current)
         self.kcurrent.current_on()
         self.armot.change_relay_config(np.sign(self.field[0]))
@@ -154,38 +159,39 @@ class FieldThread(QRunnable):
         self.armot.change_relay_config(np.sign(self.field_total[0]))
         # Saturamos la muestra y lo rehacemos para el otro lado para "resetear"
         sleep(1)
-        self.agilent.set_voltage(1, inst.field_to_voltage(self.field_total[0]))
-        sleep(1)
-        self.agilent.channel_1_on()
+        self.coils.set_current(inst.field_to_current(self.field_total[0]))
+        sleep(0.5)
+        self.coils.output_on()
         sleep(10)
-        self.agilent.channel_1_off()
+        self.coils.output_off()
         sleep(1)
         self.armot.change_relay_config(np.sign(self.field_total[0] * -1))
         sleep(1)
-        self.agilent.channel_1_on()
+        self.coils.output_on()
         sleep(10)
-        self.agilent.channel_1_off()
+        self.coils.output_off()
         sleep(1)
         # Dejamos la configurac del inicio del run.
         self.armot.change_relay_config(np.sign(self.field[0]))
         sleep(1)
-        self.agilent.channel_1_on()
+        self.coils.output_on()
         sleep(1)
         for field in self.field_total:
             if self.running:
                 if self.sign_changed(field, last_field):
                     print('Changed relay config.')
                     self.armot.change_relay_config(np.sign(last_field * -1))
-                self.agilent.set_voltage(1, inst.field_to_voltage(field))
+                self.coils.set_current(abs(inst.field_to_current(field)))
                 sleep(2)
-                print(inst.field_to_voltage(field))
+                print('Current needed/provided for field: {} / {} amps'.format(inst.field_to_current(field),
+                                                                               self.coils.query_current()))
                 mean, std = inst.mean_voltage(self.num_meas, self.multimeter)
-                self.signals.result2.emit('Measuring at field {} G ({} Volts)'.format(field,
-                                                                                      inst.field_to_voltage(field)))
+                self.signals.result2.emit('Measuring at field {} G ({} amps)'.format(field,
+                                                                                      inst.field_to_current(field)))
                 self.signals.result.emit([field, mean, std])
                 last_field = field
             else:
-                self.agilent.channel_1_off()
+                self.coils.output_off()
                 sleep(1)
                 self.kcurrent.current_off()
                 # Return arduino to starting position
@@ -196,7 +202,7 @@ class FieldThread(QRunnable):
                 return
         # Al terminar, cerramos rm y emitimos señal.
         self.kcurrent.current_off()
-        self.agilent.channel_1_off()
+        self.coils.output_off()
         self.signals.result2.emit('Moving motor back to start position.')
         self.armot.move_new(self.armot.steps_moved * (-1), 0.03)
         self.rm.close()
@@ -229,7 +235,8 @@ class SensThread(QRunnable):
         self.rm = pyvisa.ResourceManager('@py')
         self.multimeter = inst.Keithley2010(self.rm, self.instrument_list[0])
         self.kcurrent = inst.Keithley6221(self.rm, self.instrument_list[1])
-        self.agilent = inst.Fuente_Siglent(self.rm, self.instrument_list[2])
+        self.agilent = inst.Keithley2260(self.rm, self.instrument_list[2])
+        self.agilent.set_voltage(30)
         self.armot = motor.ArduinoM(self.arduino_dir, self.motor_pins, self.relay_pins)
         print("From SENSWORKER: Saturation Field: {} G".format(self.saturation_f))
         print("From SENSWORKER: Field values to be swept: {}".format(self.field))
@@ -239,63 +246,69 @@ class SensThread(QRunnable):
         print("From SENSWORKER: List of instruments: {}".format(self.instrument_list))
         print("From SENSWORKER: MEASUREMENT START (Sensitivity sweep)")
 
+    def sign_changed(self, varr1, varr2):
+        if np.sign(varr1) == np.sign(varr2):
+            # NO sign change. Proceed
+            return False
+        # If we encounter a 0, there will be a sign change,
+        elif varr2 == 0:
+            return True
+        else:
+            return True
+
     @pyqtSlot()
     def run(self):
         # Set angle and sample current
         # delay in one total step = 0.4 secs
         self.armot.move_new(self.armot.angle_to_steps(self.angle), 0.05)
+        self.armot.turnoff_motor()
         self.armot.change_relay_config(np.sign(self.saturation_f))
-        self.multimeter.set_rate(5)
+        self.multimeter.set_rate(2)
         sleep(1)
-        self.agilent.set_voltage(1, inst.field_to_voltage(self.saturation_f))
-        print("Voltage for sample saturation: {} V".format(inst.field_to_voltage(self.saturation_f)))
+        self.agilent.set_current(self.saturation_f)
+        print("Current for sample saturation: {} V".format(inst.field_to_current(self.saturation_f)))
         sleep(1)
-        self.agilent.channel_1_on()
+        self.agilent.output_on()
         sleep(10)
-        self.agilent.channel_1_off()
+        self.agilent.output_off()
         sleep(1)
         # Saturo para el otro lado
         self.armot.change_relay_config(np.sign(self.saturation_f) * (-1))
         sleep(1)
-        self.agilent.channel_1_on()
+        self.agilent.output_on()
         sleep(10)
-        self.agilent.channel_1_off()
+        self.agilent.output_off()
         sleep(1)
         self.armot.change_relay_config(np.sign(self.saturation_f))
         sleep(1)
-        self.agilent.channel_1_on()
+        self.agilent.output_on()
         sleep(10)
-        self.agilent.channel_1_off()
+        self.agilent.output_off()
         self.app.showMessage_saturation.emit()
         while not self.app.sample_saturated:
             sleep(0.1)
-        # Fuente agilent alimenta a la muestra
         print("FROM SENS THREAD: SAMPLE SATURATED. MEASUREMENT START")
-        self.agilent.set_channel(2)
         sleep(1)
-        self.agilent.set_voltage(2, 2.5)
-        sleep(1)
-        self.agilent.set_current(2, self.current)
-        sleep(1)
-        self.agilent.channel_2_on()
-        sleep(1)
-        # Relay in forward mode for keithley source
-        self.armot.change_relay_config(1)
-        sleep(1)
-        self.kcurrent.set_current(inst.field_to_current(self.field[0]))
+        # Ponemos el signo del primer valor del array.
+        self.armot.change_relay_config(np.sign(self.field[0]))
+        self.kcurrent.set_current(inst.field_to_current(abs(self.field[0])))
         self.kcurrent.current_on()
-        #test
+        last_field = self.field[0]
         for field in self.field:
             if self.running:
-                self.kcurrent.set_current(inst.field_to_current(field))
+                if self.sign_changed(field, last_field):
+                    print('Changed relay config.')
+                    self.armot.change_relay_config(np.sign(last_field * -1))
+                self.kcurrent.set_current(abs(inst.field_to_current(field)))
                 sleep(5)
                 mean, std = inst.mean_voltage(self.num_meas, self.multimeter)
                 self.signals.result2.emit('Measuring at field {} G ({} amps)'.format(field,
                                                                                      inst.field_to_current(field)))
                 self.signals.result.emit([field, mean, std])
+                last_field = field
             else:
                 print('Running is {}'.format(self.running))
-                self.agilent.channel_2_off()
+                self.agilent.output_off()
                 sleep(1)
                 self.kcurrent.current_off()
                 # Return arduino to starting position
@@ -303,10 +316,12 @@ class SensThread(QRunnable):
                 self.armot.move_new(self.armot.steps_moved * (-1), 0.03)
                 self.rm.close()
                 self.signals.finished.emit()
+                self.app.sample_saturated = False
                 return
         # Al terminar, cerramos rm y emitimos señal.
         self.kcurrent.current_off()
-        self.agilent.channel_2_off()
+        self.agilent.output_off()
+        self.agilent.set_voltage(30)
         self.signals.result2.emit('Moving motor back to start position.')
         self.armot.move_new(self.armot.steps_moved * (-1), 0.03)
         self.rm.close()
@@ -328,7 +343,7 @@ class SampleReset(QRunnable):
         self.instrument_list = var2
         self.motor_pins = [12, 11, 10, 9]
         self.relay_pins = [2, 3, 4, 5]
-        self.siglent = inst.Fuente_Siglent(self.rm, self.instrument_list[2])
+        self.siglent = inst.Keithley2260(self.rm, self.instrument_list[2])
         self.arduino_dir = self.instrument_list[3]
         self.arduino = arMotor.ArduinoM(self.rm, self.arduino_dir, self.motor_pins, self.relay_pins)
 
