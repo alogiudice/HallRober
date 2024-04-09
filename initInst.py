@@ -8,6 +8,7 @@ import pyvisa
 import re
 import configparser
 import os
+import serial.tools.list_ports
 
 class ComboBox(QComboBox):
     #Override the common ComboBox to automatically filter duplicates
@@ -38,7 +39,9 @@ class InitializeInstruments(QDialog):
         self.config = configparser.ConfigParser()
         # If no config file is present, we create a new one
         # List the different instruments connected to the PC.
+        self.arduino_PID = '2341:0043'
         self.signals = initInstSignals()
+        self.ports = serial.tools.list_ports.comports()
         self.rm = pyvisa.ResourceManager('@py')
         self.info = list(self.rm.list_resources())
         self.dialog_inst = QDialog()
@@ -66,7 +69,7 @@ class InitializeInstruments(QDialog):
         who4 = self.create_who_button()
         self.status_label = QLabel()
         self.status_label.setText("test")
-        self.find_config_file()
+
         i = 0
         for item in self.info:
             text_inst_output.append('{}) address: {}\n'.format(i, item))
@@ -106,6 +109,7 @@ class InitializeInstruments(QDialog):
         b3.clicked.connect(self.auto_guess)
         frame_inst.addLayout(inputs)
         frame_inst.addWidget(self.status_label)
+        self.find_config_file()
         self.dialog_inst.setLayout(frame_inst)
         self.dialog_inst.setFixedSize(600, 400)
         #self.dialog_inst.exec_()
@@ -136,20 +140,23 @@ class InitializeInstruments(QDialog):
             arduino = self.config['DEFAULT']['Arduino']
             # The new combobox should already filter all repeated values
             # and None values.
-            self.instpool = list(self.info)
-            [self.instpool.append(n) for n in [multi, cc_sample, cc_coils, arduino]]
-            [self.choice1.addItem(n) for n in [multi, cc_sample, cc_coils, arduino]]
-            [self.choice2.addItem(n) for n in [multi, cc_sample, cc_coils, arduino]]
-            [self.choice3.addItem(n) for n in [multi, cc_sample, cc_coils, arduino]]
-            [self.choice4.addItem(n) for n in [multi, cc_sample, cc_coils, arduino]]
-            if multi:
-                self.choice1.setCurrentIndex(self.instpool.index(multi))
-            if cc_sample:
-                self.choice2.setCurrentIndex(self.instpool.index(cc_sample))
-            if cc_coils:
-                self.choice3.setCurrentIndex(self.instpool.index(cc_coils))
-            if arduino:
-                self.choice4.setCurrentIndex(self.instpool.index(arduino))
+            instpool = list(self.info)
+            if cc_sample in instpool:
+                a = instpool.index(cc_sample)
+                #print("DEBUG: cc_sample from config_file in instpool ({})".format(a))
+                self.choice2.setCurrentIndex(a)
+            if cc_coils in instpool:
+                a = instpool.index(cc_coils)
+                #print("DEBUG: cc_coils from config_file in instpool ({})".format(a))
+                self.choice3.setCurrentIndex(a)
+            if multi in instpool:
+                a = instpool.index(multi)
+                #print("DEBUG: multimeter from config_file in instpool ({})".format(a))
+                self.choice1.setCurrentIndex(a)
+            if arduino in instpool:
+                a = instpool.index(arduino)
+                #print("DEBUG: arduino from config_file in instpool ({})".format(a))
+                self.choice4.setCurrentIndex(a)
         else:
             self.status_label.setText("No config file found. Creating a new one.")
             self.config['DEFAULT'] = {'currentsample': '',
@@ -169,46 +176,42 @@ class InitializeInstruments(QDialog):
         if len(self.info) < 3:
             self.less_than_three_inst_warn()
             return 1
-        pattern_ccsource = re.compile("MODEL 6220")
+        pattern_ccsource = re.compile("MODEL 622")
         pattern_multimeter = re.compile("MODEL 2010")
         #pattern_agilent = re.compile("(?=.*Agilent)(?=.*6221)")
         pattern_notInst = re.compile("ttyS0")
-        pattern_hcsource = re.compile("SPD3303")
-        pattern_arduino = re.compile("ttyACM")
-        for ind, item in enumerate(self.info):
+        pattern_hcsource = re.compile("Model 2260B-30-36")
+        #pattern_hcsource = re.compile("SPD3303")
+
+        for ind, item in enumerate(self.ports):
             #print('{} and {}'.format(ind, item))
-            if pattern_notInst.search(item) is not None:
+            port_name = item.device
+            if pattern_notInst.search(port_name) is not None:
                 print("{} probably not an instrument. Pass.".format(item))
                 pass
+            elif self.arduino_PID in item.hwid:
+                print("Arduino found at {}".format(port_name))
+                self.choice4.setCurrentIndex(ind)
             else:
-                # Arduino always is in /dev/ttyACMx, so we will look for that in the list_resources list.
-                if pattern_arduino.search(item, re.IGNORECASE) is not None:
-                    print("Arduino found: {}".format(item))
-                    self.choice4.setCurrentIndex(ind+1)
+                # if it's not an arduino, we open the instrument and ask for its idn.
+                ins = self.rm.open_resource('ASRL/'+ port_name)
+                print("Open resource {}".format(item))
+                ins.write('*IDN?')
+                sleep(1)
+                st = str(ins.read_raw())
+                print("IDN output for instrument: {}".format(st))
+                if pattern_hcsource.search(st, re.IGNORECASE) is not None:
+                    print("Current source for HCoils is {}".format(item))
+                    self.choice3.setCurrentIndex(ind)
+                elif pattern_multimeter.search(st, re.IGNORECASE) is not None:
+                    print("Multimeter is {}".format(item))
+                    self.choice1.setCurrentIndex(ind)
+                elif pattern_ccsource.search(st, re.IGNORECASE) is not None:
+                    print("Current source for sample is {}".format(item))
+                    self.choice2.setCurrentIndex(ind)
                 else:
-                    # if it's not an arduino, we open the instrument and ask for its idn.
-                    ins = self.rm.open_resource(item)
-                    print("Open resource {}".format(item))
-                    ins.write('*IDN?')
-                    sleep(1)
-                    st = str(ins.read_raw())
-                    print("IDN output for instrument: {}".format(st))
-                    # Dunno why, but first comboBox item is blank
-                    if pattern_hcsource.search(st, re.IGNORECASE) is not None:
-                        print("Current source for HCoils is {}".format(item))
-                        self.choice3.setCurrentIndex(ind+1)
-                    elif pattern_multimeter.search(st, re.IGNORECASE) is not None:
-                        print("Multimeter is {}".format(item))
-                        self.choice1.setCurrentIndex(ind+1)
-                    elif pattern_ccsource.search(st, re.IGNORECASE) is not None:
-                        print("Current source for sample is {}".format(item))
-                        self.choice2.setCurrentIndex(ind+1)
-                    else:
-                        print("ERROR: Couldn't match the instrument's identity ({}) with any recognized "
-                              "instruments.".format(st))
-
-
-
+                    print("ERROR: Couldn't match the instrument's identity ({}) with any recognized "
+                         "instruments.".format(st))
 
     def getInstruments(self):
         # First, we check that we actually have four instruments selected.
