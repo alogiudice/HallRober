@@ -104,6 +104,9 @@ class angleInit(QDialog):
             self.config['DEFAULT']['motor_position'] = str(0)
             with open('config.cfg', 'w') as file:
                 self.config.write(file)
+            self.arduino.turnoff_motor()
+            sleep(1)
+            self.dialog_angle.close()
         else:
             # No deberia pasar, salvo que se borre en el medio el archivo de config.
             print("Config file not found. Did you delete it on purpose?"
