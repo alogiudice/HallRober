@@ -57,6 +57,11 @@ class ArduinoM:
                 self.steps_moved -= 1
                 print("vector[{}]; total steps: {}".format(i % 8, self.steps_moved))
 
+    def turnoff_motor(self):
+        # Veo si puedo evitar que el motor siga llevandose corriente cuando no lo necesito
+        # (y que hace que el relay quede inutilizable)
+        self.step([0, 0, 0, 0], 1)
+
 
     def steps_to_angle(self, steps):
         # steps to angle conversion
