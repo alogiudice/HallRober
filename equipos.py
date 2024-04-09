@@ -106,6 +106,36 @@ class FuenteAgilent:
     def ps_output(self, st):
         #Puede ser ON u OFF
         self.instf.write('OUTPut {}'.format(st))
+
+class Keithley2260:
+    # Fuente Keithley chiquita
+    def __init__(self, rm, name):
+        self.inst = rm.open_resource('{}'.format(name))
+    def identity(self):
+        self.inst.write('*IDN?\n')
+        sleep(1)
+        print('Hi! My name is {}'.format(self.inst.read_raw()))
+    def set_voltage(self, voltage):
+        self.inst.write('SOUR:VOLT:LEV:IMM:AMPL {}'.format(voltage))
+
+    def query_voltage(self):
+        self.inst.write('SOUR:VOLT:LEV:IMM:AMPL?')
+        sleep(0.5)
+        stri = self.inst.read_raw()
+        return stri
+
+    def set_current(self, current):
+        self.inst.write('SOUR:CURR:LEV:IMM:AMPL {}'.format(current))
+    def query_current(self):
+        self.inst.write('SOUR:CURR:LEV:IMM:AMPL?')
+        sleep(0.5)
+        stri = self.inst.read_raw()
+        return stri
+    def output_on(self):
+        self.inst.write('OUTP:STAT:IMM 1')
+
+    def output_off(self):
+        self.inst.write('OUTP:STAT:IMM 0')
     
 class Keithley2010:
     #Multímetro Keithley    
@@ -177,7 +207,7 @@ def field_to_voltage(field):
 
 def field_to_current(field):
     # Using last calibration.
-    current = truncate(((field + 0.0232) / 0.1742), decimals=2)
+    current = (field + 0.0232) / 0.1742
     current /= 1000
     return current
 
