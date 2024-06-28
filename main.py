@@ -1,4 +1,5 @@
- # -*- coding: utf-8 -*-
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 from PyQt5.QtCore import *
 from PyQt5.QtGui import *
 from PyQt5.QtWidgets import *
@@ -434,7 +435,7 @@ class Ui_MainWindow(QMainWindow):
 
     def helpAbout(self):
         msg = QMessageBox.about(self, "About HallRober",
-                                    """<b>HallRober - Measuring the Planar Hall Effect.</b> 
+                                    """<b>HallRober - Measuring Planar Hall Effect & AMR.</b> 
                                     <p>Version %s (2024) by Agostina Lo Giudice.
                                     (agostina.logiudice@gmail.com)
                                     <p>This program is distributed under the GNU 
@@ -443,8 +444,9 @@ class Ui_MainWindow(QMainWindow):
 
     def save_Filename(self):
         # Open FileDialog to get save file name.
+        p = os.path.expanduser("~")
         filename, _ = QFileDialog.getSaveFileName(self, "Select a File",
-                                                  r"/home/agostina/",
+                                                  p,
                                                   r"CSV files (*.csv)")
         if filename:
             path = Path(filename)
