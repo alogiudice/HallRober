@@ -17,7 +17,12 @@ class Keithley6221:
     # Fuente de Corriente Keithley   
     def __init__(self, rm, name):
         self.inst = rm.open_resource('{}'.format(name))
-        #'ASRL/dev/ttyUSB2::INSTR'
+        # Setting baud, terminator and flow control.
+        self.inst.write('SYST:COMM:SER:BAUD 9600')
+        sleep(1)
+        self.inst.write('SYST:COMM:SER:TERM LF')
+        sleep(1)
+        self.inst.write('SYST:COMM:SER:PACE OFF')
         
     def identity(self):
         self.inst.write('*IDN?\n')
@@ -32,15 +37,30 @@ class Keithley6221:
 
     def current_off(self):
         self.inst.write('OUTput OFF')
-        
-        
+
+    def set_baud(self, num=9600):
+        # Sets the baud rate of the current source.
+        # Default is 9600. Other options are:
+        #  300, 600, 1200, 2400, 4800,
+        # 9600, 19.2k, 38.4K, 57.6K, or 115.2K.
+
+        self.inst.write('SYST:COMM:SER:BAUD {}'.format(num))
+
+    def set_terminator(self, stri='LF'):
+        # Sets terminator. Default is LF.
+        # Other options are = CR, CRLF, or LFCR.
+        self.inst.write('SYST:COMM:SER:TERM {}'.format(stri))
+
+    def set_flow_control(self, stri='OFF'):
+        # Sets flow control (XON or OFF)
+        self.inst.write('SYST:COMM:SER:PACE {}'.format(stri))
 class Fuente_Siglent:
     # Fuente Siglent para las bobinas    
     def __init__(self, rm, name):
         self.instf = rm.open_resource('{}'.format(name))
-        #USB0::1155::30016::SPD00002130184::0::INSTR
-        self.instf.write_termination='\n' #Modify termination character
-        self.instf.read_termination='\n' #Modify termination character
+        # Modify termination character
+        self.instf.write_termination = '\n'
+        self.instf.read_termination = '\n'
         
     def identity(self):
         self.instf.write('*IDN?')
@@ -88,9 +108,8 @@ class FuenteAgilent:
     # Fuente DC Agilent
     def __init__(self, rm, name):
         self.instf = rm.open_resource('{}'.format(name))
-        #USB0::1155::30016::SPD00002130184::0::INSTR
-        self.instf.write_termination='\n' #Modify termination character
-        self.instf.read_termination='\n' #Modify termination character
+        self.instf.write_termination='\n'
+        self.instf.read_termination='\n'
         
     def set_voltage(self, num):
         # in Volts

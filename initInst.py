@@ -112,10 +112,7 @@ class InitializeInstruments(QDialog):
         self.find_config_file()
         self.dialog_inst.setLayout(frame_inst)
         self.dialog_inst.setFixedSize(600, 400)
-        #self.dialog_inst.exec_()
-        # WTF
-        # El solo hecho de cambiar exec a show hizo que FUNCIONARAN
-        # los slots correctamente!
+        # Show makes the slots work as expected (was using "exec_" before :( )
         self.dialog_inst.show()
 
     def create_who_button(self):
